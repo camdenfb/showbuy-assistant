@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { requireShowbuyer } from "@/lib/auth/require-showbuyer";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
@@ -15,14 +16,23 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl bg-white px-6 py-12 text-zinc-900">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
+      <Breadcrumbs items={[{ label: "Dashboard" }]} />
+      <div className="mt-4 flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold text-zinc-900">Dashboard</h1>
           <p className="mt-2 text-sm text-zinc-600">Signed in as {auth.email}</p>
         </div>
-        <Link href="/dashboard/outbox" className="text-sm font-medium underline">
-          Demo outbox
-        </Link>
+        <span className="flex gap-3 text-sm font-medium">
+          <Link href="/dashboard/showbuys/new" className="underline">
+            New showbuy
+          </Link>
+          <Link href="/dashboard/analytics" className="underline">
+            Analytics
+          </Link>
+          <Link href="/dashboard/outbox" className="underline">
+            Demo outbox
+          </Link>
+        </span>
       </div>
       <ul className="mt-8 space-y-4">
         {(showbuys ?? []).map((showbuy) => (
@@ -34,14 +44,29 @@ export default async function DashboardPage() {
               })}
             </p>
             <span className="mt-3 flex flex-wrap gap-3 text-sm font-medium">
+              <Link
+                className="underline"
+                href={`/dashboard/showbuys/${showbuy.id}/settings`}
+              >
+                Edit settings
+              </Link>
               <Link className="underline" href={`/dashboard/showbuys/${showbuy.id}/orders`}>
                 Orders
               </Link>
               <Link className="underline" href={`/dashboard/showbuys/${showbuy.id}/payments`}>
                 Payments
               </Link>
+              <Link className="underline" href={`/dashboard/showbuys/${showbuy.id}/promos`}>
+                Promos
+              </Link>
+              <Link
+                className="underline"
+                href={`/dashboard/analytics?showbuy=${showbuy.id}`}
+              >
+                Analytics
+              </Link>
               <Link className="underline" href={`/dashboard/showbuys/${showbuy.id}/import`}>
-                Import
+                Inventory
               </Link>
               <Link className="underline" href={`/order/${showbuy.id}`}>
                 Order page

@@ -15,7 +15,7 @@ type DbOrder = {
   manual_reason: string | null;
 };
 
-export function mapDbOrder(row: DbOrder, nowMs: number = Date.now()): Order {
+export function mapDbOrder(row: DbOrder, nowMs: number): Order {
   const expiresAt = row.hold_expires_at ? Date.parse(row.hold_expires_at) : NaN;
   const holdRemainingMs = Number.isFinite(expiresAt)
     ? Math.max(0, expiresAt - nowMs)

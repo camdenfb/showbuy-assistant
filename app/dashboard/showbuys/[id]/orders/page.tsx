@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { requireShowbuyer } from "@/lib/auth/require-showbuyer";
 import { canTransition, type OrderStatus } from "@/lib/rules/orders";
 import { mapDbOrder } from "@/lib/order/map-order";
@@ -33,7 +33,7 @@ export default async function OrdersPage({ params }: Props) {
   const { data: orderRows } = await supabase
     .from("orders")
     .select(
-      "id, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, manual_reason, total_centavos, card_rebate_centavos, qty, name, email, mobile",
+      "id, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, promo_code, manual_reason, total_centavos, card_rebate_centavos, qty, name, email, mobile",
     )
     .eq("showbuy_id", id)
     .order("created_at", { ascending: false });
@@ -70,7 +70,7 @@ export default async function OrdersPage({ params }: Props) {
 
   const cards: OrderCard[] = [];
   for (const row of orderRows ?? []) {
-    const order = mapDbOrder(row);
+    const order = mapDbOrder(row, Date.now());
     const path = latestReceiptByOrder.get(row.id);
     let receiptUrl: string | null = null;
     if (path) {
@@ -86,10 +86,19 @@ export default async function OrdersPage({ params }: Props) {
       ? `Hold paused (${hours}h ${mins}m remaining)`
       : `Hold ${hours}h ${mins}m remaining`;
 
+    const promoCode =
+      typeof row.promo_code === "string" && row.promo_code.trim().length > 0
+        ? row.promo_code.trim()
+        : null;
+    const pwdSenior =
+      row.discount_card === "pwd" || row.discount_card === "senior" ? "yes" : "no";
+
     cards.push({
       id: row.id,
       status: order.status,
-      customerLabel: `${row.name} · ${row.mobile}`,
+      name: row.name,
+      email: row.email,
+      mobile: row.mobile,
       qty: row.qty,
       totalPesos: (row.total_centavos / 100).toLocaleString("en-PH"),
       rebatePesos:
@@ -104,25 +113,21 @@ export default async function OrdersPage({ params }: Props) {
       paymentEmailSent: order.paymentEmailSentAt !== null,
       claimEmailSent: order.claimEmailSentAt !== null,
       claimCode: order.claimCode,
+      promoLabel: promoCode ?? "none",
+      pwdSenior,
       allowed: ALL_STATUSES.filter((status) => canTransition(order, status, "showbuyer")),
     });
   }
 
   return (
-    <main className="mx-auto min-h-screen max-w-3xl bg-white px-6 py-12 text-zinc-900">
-      <p className="text-sm">
-        <Link href="/dashboard" className="underline">
-          Dashboard
-        </Link>
-        {" · "}
-        <Link href={`/dashboard/showbuys/${id}/payments`} className="underline">
-          Payments
-        </Link>
-        {" · "}
-        <Link href="/dashboard/outbox" className="underline">
-          Outbox
-        </Link>
-      </p>
+    <main className="mx-auto min-h-screen max-w-6xl bg-white px-6 py-12 text-zinc-900">
+      <Breadcrumbs
+        items={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: showbuy.name },
+          { label: "Orders" },
+        ]}
+      />
       <h1 className="mt-4 text-2xl font-semibold">Orders</h1>
       <p className="mt-1 text-sm text-zinc-600">{showbuy.name}</p>
       <div className="mt-8">

@@ -1,4 +1,6 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 import { createTicket2MeClient } from "@/lib/adapters/ticket2me";
 import { requireShowbuyer } from "@/lib/auth/require-showbuyer";
 import {
@@ -26,10 +28,11 @@ export default async function ImportSeatMapPage({ params, searchParams }: Props)
   const supabase = createSupabaseServiceClient();
   const { data: showbuy } = await supabase
     .from("showbuys")
-    .select("id, name, t2m_show_id")
+    .select("id, name, t2m_show_id, coverage")
     .eq("id", id)
     .maybeSingle();
   if (!showbuy) redirect("/dashboard");
+  const coverage = showbuy.coverage === "partial" ? "partial" : "full";
 
   const { data: existingSections } = await supabase
     .from("sections")
@@ -74,11 +77,32 @@ export default async function ImportSeatMapPage({ params, searchParams }: Props)
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl bg-white px-6 py-12 text-zinc-900">
-      <h1 className="text-2xl font-semibold text-zinc-900">Import seat map</h1>
-      <p className="mt-2 text-sm text-zinc-600">{showbuy.name}</p>
+      <Breadcrumbs
+        items={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: showbuy.name },
+          { label: "Inventory" },
+        ]}
+      />
+      <h1 className="mt-4 text-2xl font-semibold text-zinc-900">Inventory</h1>
+      <p className="mt-2 text-sm text-zinc-600">
+        Coverage: {coverage}
+        {coverage === "full"
+          ? " — every section is for sale."
+          : " — only sections marked for sale can be sold."}{" "}
+        Change coverage in{" "}
+        <Link className="underline" href={`/dashboard/showbuys/${id}/settings`}>
+          settings
+        </Link>
+        .
+      </p>
       {query.saved ? (
         <p className="mt-4 rounded bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-          Seat map saved.
+          Seat map saved. Next:{" "}
+          <Link className="underline" href={`/dashboard/showbuys/${id}/payments`}>
+            payment accounts
+          </Link>
+          .
         </p>
       ) : null}
       <ImportForm
@@ -90,6 +114,7 @@ export default async function ImportSeatMapPage({ params, searchParams }: Props)
         savedClassifications={savedClassifications}
         hasExistingSeats={(seatCount ?? 0) > 0}
         feedPreview={feed}
+        coverage={coverage}
       />
     </main>
   );

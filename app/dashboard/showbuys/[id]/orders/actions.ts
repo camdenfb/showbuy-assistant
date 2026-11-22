@@ -3,7 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { createEmailClient } from "@/lib/adapters/email";
 import { requireShowbuyer } from "@/lib/auth/require-showbuyer";
-import { formatClaimCode, validateClaimCodeTemplate } from "@/lib/rules/claim-code";
+import {
+  abbreviateSectionCode,
+  claimDiscountCode,
+  formatClaimCode,
+  formatClaimOrderId,
+  validateClaimCodeTemplate,
+} from "@/lib/rules/claim-code";
 import {
   applyProcessResult,
   cancelOrder,
@@ -22,7 +28,7 @@ export type ActionState =
   | { ok: false; reason: string };
 
 const ORDER_SELECT =
-  "id, showbuy_id, name, email, mobile, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, manual_reason, total_centavos, card_rebate_centavos, qty, preferred_section_id, payment_account_id, receipt_token, tickets";
+  "id, showbuy_id, name, email, mobile, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, manual_reason, total_centavos, card_rebate_centavos, qty, preferred_section_id, payment_account_id, receipt_token, tickets";
 
 async function loadOrderBundle(showbuyId: string, orderId: string) {
   const supabase = createSupabaseServiceClient();
@@ -45,7 +51,7 @@ async function loadOrderBundle(showbuyId: string, orderId: string) {
   return {
     supabase,
     orderRow,
-    order: mapDbOrder(orderRow),
+    order: mapDbOrder(orderRow, Date.now()),
     seats: (seatRows ?? []).map(mapDbSeat),
   };
 }
@@ -160,7 +166,8 @@ export async function processOrders(showbuyId: string): Promise<ActionState> {
     .eq("showbuy_id", showbuyId)
     .in("status", ["sent_payment_info", "paid"]);
 
-  const orders = (orderRows ?? []).map((row) => mapDbOrder(row));
+  const nowMs = Date.now();
+  const orders = (orderRows ?? []).map((row) => mapDbOrder(row, nowMs));
   const seatsByOrderId: Record<string, ReturnType<typeof mapDbSeat>[]> = {};
 
   for (const row of orderRows ?? []) {
@@ -196,7 +203,7 @@ export async function processOrders(showbuyId: string): Promise<ActionState> {
 
   for (const task of tasks) {
     const row = orderRows!.find((item) => item.id === task.orderId)!;
-    const order = mapDbOrder(row);
+    const order = mapDbOrder(row, Date.now());
     const seats = seatsByOrderId[task.orderId] ?? [];
     const sectionName = sectionNameById[row.preferred_section_id] ?? "Section";
     const orderNumber = row.id.slice(0, 8);
@@ -257,27 +264,26 @@ export async function processOrders(showbuyId: string): Promise<ActionState> {
     }
 
     const seatLabels = seats.map((seat) => seat.label);
+    const firstSeat = seatLabels[0] ?? "seat";
+    const claimParts = {
+      section: abbreviateSectionCode(sectionName),
+      order: formatClaimOrderId(orderNumber),
+      seat: firstSeat,
+      qty: row.qty,
+      discount: claimDiscountCode({
+        appliedDiscount: row.applied_discount,
+        discountCard: row.discount_card,
+      }),
+    };
     let claimCode = order.claimCode;
     if (!claimCode) {
-      claimCode = formatClaimCode(showbuy.claim_code_template, {
-        section: sectionName,
-        order: orderNumber,
-        seat: seatLabels.join("+") || "seat",
-        qty: row.qty,
-        discount: row.applied_discount,
-      });
+      claimCode = formatClaimCode(showbuy.claim_code_template, claimParts);
       const { error: claimError } = await supabase
         .from("orders")
         .update({ claim_code: claimCode })
         .eq("id", row.id);
       if (claimError) {
-        claimCode = formatClaimCode(showbuy.claim_code_template, {
-          section: sectionName,
-          order: orderNumber,
-          seat: seatLabels.join("+") || "seat",
-          qty: row.qty,
-          discount: row.applied_discount,
-        });
+        claimCode = formatClaimCode(showbuy.claim_code_template, claimParts);
         await supabase.from("orders").update({ claim_code: claimCode }).eq("id", row.id);
       }
     }

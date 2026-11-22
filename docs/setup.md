@@ -120,11 +120,30 @@ ANTHROPIC_API_KEY=
 CRON_SECRET=
 DEMO_MODE=true
 TICKET2ME_EVENT_SERVICE_URL=
+EMAIL_MODE=outbox
+EMAIL_FROM=
+APP_URL=http://localhost:3000
+GMAIL_CLIENT_ID=
+GMAIL_CLIENT_SECRET=
+GMAIL_REFRESH_TOKEN=
 ```
 
 - `ANTHROPIC_API_KEY` comes from the Claude Console. Set a monthly spend limit there. It's needed from slice 4, both here and in Vercel.
 - `CRON_SECRET` is any long random value, for example from `openssl rand -hex 32`.
-- Email isn't needed in demo mode (on-screen outbox). With `DEMO_MODE=true`, Ticket2Me uses the fictional Harbor Lights seat plan. With `DEMO_MODE=false`, set `TICKET2ME_EVENT_SERVICE_URL` to Ticket2Me's event-service base URL so the server can read `/show/{id}/get_seat_plan`. Leave `DEMO_MODE` unset only if you want fail-closed (no Ticket2Me calls).
+- With `EMAIL_MODE=outbox`, emails go to the on-screen outbox and nothing is sent. To send real email, follow **Gmail** below and set `EMAIL_MODE=gmail`. In Vercel, set `APP_URL` to the live address.
+- With `DEMO_MODE=true`, Ticket2Me uses the fictional Harbor Lights seat plan. With `DEMO_MODE=false`, set `TICKET2ME_EVENT_SERVICE_URL` to Ticket2Me's event-service base URL so the server can read `/show/{id}/get_seat_plan`. Leave `DEMO_MODE` unset only if you want fail-closed (no Ticket2Me calls).
+
+### Gmail
+
+The app sends from your Google Workspace address with a send-only permission. It can't read your mail.
+
+1. At https://console.cloud.google.com, create a project and enable the **Gmail API**.
+2. Set up the **OAuth consent screen** as **Internal**. If Internal isn't offered, the account isn't Google Workspace, so stop and choose another route. An External app in testing mode stops sending after 7 days.
+3. Create an **OAuth client ID** of type **Web application**, with `https://developers.google.com/oauthplayground` as an authorized redirect URI.
+4. At https://developers.google.com/oauthplayground, open the settings, tick **Use your own OAuth credentials** and enter the client ID and secret. Authorize only `https://www.googleapis.com/auth/gmail.send`, signed in as the sending address, then exchange the code for tokens.
+5. Put the client ID, client secret and refresh token in `.env.local` and Vercel yourself. Set `EMAIL_FROM` to `Showbuy Assistant <your address>`.
+
+If a token ever leaks, remove the app under **Google Account > Security > Third-party connections**, then repeat step 4.
 
 Connect the database:
 
@@ -146,7 +165,7 @@ Docker isn't needed for these, or for pushing migrations with `npx supabase db p
 
 Give Cursor one slice at a time. Read the diff, run `npm test` and try it in the browser before committing.
 
-**Build order: 1, 2, 3, 4, 5, 7. Then 6 and 8, if time permits.** Slice numbers are kept so prompts and commits still match.
+**Build order: 1, 2, 3, 4, 5, 7, 9. Then 6 and 8, if time permits.** Slice numbers are kept so prompts and commits still match. Slice 9 was added later; build it as soon as you can, because without it a new showbuy can only be added to the database by hand.
 
 ### Required
 
@@ -158,6 +177,7 @@ Give Cursor one slice at a time. Read the diff, run `npm test` and try it in the
 | 4 | Customer order | Build the mobile-first customer page: seat map, two choices, form, price preview, atomic hold, the demo outbox email, and the AI seat assigner from spec.md with its fallback. Test it with fake AI responses, including invalid IDs, a timeout and a note that tries to give instructions. | `feat: add customer ordering` |
 | 5 | Dashboard | Build the login, showbuy switcher, payment settings, order tracker, private receipt upload, manual payment confirmation, manual status update and Process orders button. No AI yet. | `feat: add order dashboard` |
 | 7 | Reconciliation | Build reconciliation as specified, protected by CRON_SECRET, with the demo replay. Schedule it hourly with Supabase Cron and run it on order page load. Never overwrite a hold made during a check. | `feat: reconcile inventory` |
+| 9 | Showbuy setup | Build Feature 1's create, edit and switch screens for showbuys, with every setup field from spec.md, validated on the server. No signup, no delete. | `feat: add showbuy setup` |
 
 ### Optional, if time permits
 

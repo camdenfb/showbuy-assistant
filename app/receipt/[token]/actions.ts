@@ -32,7 +32,7 @@ export async function uploadReceiptAction(
     .maybeSingle();
   if (!orderRow) return { ok: false, reason: "not_found" };
 
-  const order = mapDbOrder(orderRow);
+  const order = mapDbOrder(orderRow, Date.now());
   const next = applyUploadReceipt(order);
   if (next.status !== "payment_submitted") {
     return { ok: false, reason: "upload_not_allowed" };

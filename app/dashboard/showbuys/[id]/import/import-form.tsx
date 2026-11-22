@@ -34,6 +34,7 @@ type Props = {
   seats: FeedSeat[];
   savedClassifications: Record<number, UnavailableClass>;
   hasExistingSeats: boolean;
+  coverage: "full" | "partial";
   feedPreview: {
     rowNumber: number;
     seats: { seat_no: string; status: number; ticket_id: number; seat_id: number }[];
@@ -139,12 +140,14 @@ function SectionAccordion({
   type,
   meta,
   existing,
+  coverage,
   onForSaleChange,
 }: {
   showbuyId: string;
   type: number;
   meta: T2mShowTicket | undefined;
   existing: Section | undefined;
+  coverage: "full" | "partial";
   onForSaleChange: (forSale: boolean) => void;
 }) {
   const router = useRouter();
@@ -169,7 +172,8 @@ function SectionAccordion({
     : meta
       ? String(Math.round(meta.pricePesos))
       : "5000";
-  const defaultForSale = existing ? existing.is_for_sale !== false : false;
+  const defaultForSale =
+    coverage === "full" ? true : existing ? existing.is_for_sale !== false : false;
 
   return (
     <details className="rounded border border-zinc-200 bg-white">
@@ -230,16 +234,25 @@ function SectionAccordion({
           </label>
           <label className="text-sm text-zinc-800">
             For sale
-            <select
-              name="sectionForSale"
-              defaultValue={defaultForSale ? "on" : "off"}
-              key={`sale-${existing?.id ?? type}-${defaultForSale}`}
-              onChange={(event) => onForSaleChange(event.target.value === "on")}
-              className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900"
-            >
-              <option value="on">Yes</option>
-              <option value="off">No</option>
-            </select>
+            {coverage === "full" ? (
+              <>
+                <input type="hidden" name="sectionForSale" value="on" />
+                <p className="mt-1 rounded border border-zinc-200 bg-zinc-50 px-2 py-1 text-zinc-700">
+                  Yes (full coverage)
+                </p>
+              </>
+            ) : (
+              <select
+                name="sectionForSale"
+                defaultValue={defaultForSale ? "on" : "off"}
+                key={`sale-${existing?.id ?? type}-${defaultForSale}`}
+                onChange={(event) => onForSaleChange(event.target.value === "on")}
+                className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900"
+              >
+                <option value="on">Yes</option>
+                <option value="off">No</option>
+              </select>
+            )}
           </label>
         </div>
         {state && !state.ok ? (
@@ -266,6 +279,7 @@ export function ImportForm({
   seats,
   savedClassifications,
   hasExistingSeats,
+  coverage,
   feedPreview,
 }: Props) {
   const action = saveSeatMapImport.bind(null, showbuyId);
@@ -279,6 +293,10 @@ export function ImportForm({
   const forSaleByType = useMemo(() => {
     const out: Record<number, boolean> = {};
     for (const type of ticketTypes) {
+      if (coverage === "full") {
+        out[type] = true;
+        continue;
+      }
       if (type in forSaleOverrides) {
         out[type] = forSaleOverrides[type]!;
         continue;
@@ -287,7 +305,7 @@ export function ImportForm({
       out[type] = existing ? existing.is_for_sale !== false : false;
     }
     return out;
-  }, [ticketTypes, existingSections, forSaleOverrides]);
+  }, [ticketTypes, existingSections, forSaleOverrides, coverage]);
 
   const seatsByType = useMemo(() => {
     const map = new Map<number, FeedSeat[]>();
@@ -383,8 +401,13 @@ export function ImportForm({
       <section className="space-y-3">
         <h2 className="text-lg font-medium text-zinc-900">Sections</h2>
         <p className="text-sm text-zinc-600">
-          Open a section, set name/price/for sale, and save. Saved values persist — Ticket2Me
-          prices are reference only and do not overwrite on sync.
+          Coverage is <span className="font-medium">{coverage}</span>
+          {coverage === "full"
+            ? " — every section is treated as for sale."
+            : " — use each section’s for-sale switch."}{" "}
+          Open a section, set name/price
+          {coverage === "partial" ? "/for sale" : ""}, and save. Saved values persist —
+          Ticket2Me prices are reference only and do not overwrite on sync.
         </p>
         {ticketTypes.map((type) => (
           <SectionAccordion
@@ -393,6 +416,7 @@ export function ImportForm({
             type={type}
             meta={ticketMetaById[type]}
             existing={sectionForType(existingSections, type)}
+            coverage={coverage}
             onForSaleChange={(forSale) =>
               setForSaleOverrides((prev) => ({ ...prev, [type]: forSale }))
             }

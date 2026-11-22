@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { listOutbox } from "@/lib/adapters/email";
 import { requireShowbuyer } from "@/lib/auth/require-showbuyer";
+import { Breadcrumbs } from "@/components/breadcrumbs";
 
 export default async function OutboxPage() {
   const auth = await requireShowbuyer();
@@ -11,11 +11,12 @@ export default async function OutboxPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl bg-white px-6 py-12 text-zinc-900">
-      <p className="text-sm">
-        <Link href="/dashboard" className="underline">
-          Dashboard
-        </Link>
-      </p>
+      <Breadcrumbs
+        items={[
+          { label: "Dashboard", href: "/dashboard" },
+          { label: "Outbox" },
+        ]}
+      />
       <h1 className="mt-4 text-2xl font-semibold">Demo email outbox</h1>
       <p className="mt-1 text-sm text-zinc-600">
         In-memory messages from this server process. Refresh after Process orders or a new hold.

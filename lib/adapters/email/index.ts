@@ -1,3 +1,4 @@
+import { createGmailEmailClient } from "./gmail";
 import { pushOutbox, type OutboxMessage } from "./outbox";
 
 export type PaymentInfoEmail = {
@@ -25,13 +26,11 @@ export type ClaimCodeEmail = {
   rebatePesos: string | null;
 };
 
+export type EmailSendResult = { ok: true } | { ok: false; reason: string };
+
 export type EmailClient = {
-  sendPaymentInfo: (
-    email: PaymentInfoEmail,
-  ) => Promise<{ ok: true } | { ok: false; reason: string }>;
-  sendClaimCode: (
-    email: ClaimCodeEmail,
-  ) => Promise<{ ok: true } | { ok: false; reason: string }>;
+  sendPaymentInfo: (email: PaymentInfoEmail) => Promise<EmailSendResult>;
+  sendClaimCode: (email: ClaimCodeEmail) => Promise<EmailSendResult>;
 };
 
 export function createDemoEmailClient(): EmailClient {
@@ -87,11 +86,16 @@ export function createDemoEmailClient(): EmailClient {
   };
 }
 
-/** Live Resend path deferred; demo outbox until slice needs it. */
+/**
+ * EMAIL_MODE=gmail → Gmail API. Anything else (including missing) → dashboard outbox.
+ * Tests should pass EMAIL_MODE=outbox or omit it so fetch is never used.
+ */
 export function createEmailClient(
   env: Record<string, string | undefined> = process.env,
 ): EmailClient {
-  void env;
+  if (env.EMAIL_MODE?.trim() === "gmail") {
+    return createGmailEmailClient(env);
+  }
   return createDemoEmailClient();
 }
 
