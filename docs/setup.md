@@ -7,9 +7,9 @@ Run every command in Cursor's terminal, inside the `showbuy-assistant` folder, o
 ## Rules before you start
 
 - Open **only** `showbuy-assistant` in Cursor, never its parent folder. Only this folder becomes the public repo.
-- Never commit real buyers, payment accounts, QR codes, receipts, seat-plan downloads or the Ticket2Me address.
+- Never commit real buyers, payment accounts, QR codes, receipts or the Ticket2Me address. Shows and seat plans can be real.
 - Never paste a key into Cursor's chat. Keys go in `.env.local`, Vercel or GitHub secrets.
-- The graded deployment uses only fictional data. A real deployment would be a separate Supabase and Vercel project.
+- The graded deployment uses only fictional buyers, receipts and payment details. A real deployment would be a separate Supabase and Vercel project.
 
 ## 1. Git identity and the spec history
 

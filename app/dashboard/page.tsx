@@ -24,12 +24,17 @@ export default async function DashboardPage() {
             className="flex items-center justify-between border-b border-zinc-200 py-3 text-zinc-900"
           >
             <span>{showbuy.name}</span>
-            <Link
-              className="text-sm font-medium text-zinc-900 underline"
-              href={`/dashboard/showbuys/${showbuy.id}/import`}
-            >
-              Import seat map
-            </Link>
+            <span className="flex gap-3 text-sm font-medium">
+              <Link className="text-zinc-900 underline" href={`/order/${showbuy.id}`}>
+                Order page
+              </Link>
+              <Link
+                className="text-zinc-900 underline"
+                href={`/dashboard/showbuys/${showbuy.id}/import`}
+              >
+                Import
+              </Link>
+            </span>
           </li>
         ))}
       </ul>

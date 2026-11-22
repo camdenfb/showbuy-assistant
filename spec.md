@@ -296,7 +296,7 @@ Customer order page        Showbuyer dashboard (login)
 - Turn on row-level security for every table. Receipt links use long random tokens and work for one order.
 - Rate-limit orders, seat suggestions, receipt uploads and page-triggered reconciliation by IP, and set a monthly spend limit on the Claude key.
 - Never log names, emails, seat notes, receipt contents or claim codes. Log event type, order ID, result and latency.
-- Use only fictional shows, buyers, receipts and payment details in the repository and demo.
+- Use only fictional buyers, receipts and payment details in the repository and demo.
 - Store money in centavos. Show pesos and Manila time.
 
 ## Acceptance criteria

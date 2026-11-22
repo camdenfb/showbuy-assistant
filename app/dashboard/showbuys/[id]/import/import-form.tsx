@@ -36,7 +36,7 @@ type Props = {
   hasExistingSeats: boolean;
   feedPreview: {
     rowNumber: number;
-    seats: { seat_no: string; status: number; ticket_id: number }[];
+    seats: { seat_no: string; status: number; ticket_id: number; seat_id: number }[];
   }[];
 };
 
@@ -107,7 +107,7 @@ function sectionOutlineShadow(
   sectionColor: string,
 ): string {
   if (!forSaleByType[ticketId]) {
-    return "inset 0 0 0 1px #52525b";
+    return "";
   }
 
   const sameBlock = (r: number, c: number): boolean => {
@@ -274,25 +274,20 @@ export function ImportForm({
     null,
   );
 
-  const [forSaleByType, setForSaleByType] = useState<Record<number, boolean>>(() => {
+  const [forSaleOverrides, setForSaleOverrides] = useState<Record<number, boolean>>({});
+
+  const forSaleByType = useMemo(() => {
     const out: Record<number, boolean> = {};
     for (const type of ticketTypes) {
+      if (type in forSaleOverrides) {
+        out[type] = forSaleOverrides[type]!;
+        continue;
+      }
       const existing = sectionForType(existingSections, type);
       out[type] = existing ? existing.is_for_sale !== false : false;
     }
     return out;
-  });
-
-  useEffect(() => {
-    setForSaleByType((prev) => {
-      const next = { ...prev };
-      for (const type of ticketTypes) {
-        const existing = sectionForType(existingSections, type);
-        if (existing) next[type] = existing.is_for_sale !== false;
-      }
-      return next;
-    });
-  }, [existingSections, ticketTypes]);
+  }, [ticketTypes, existingSections, forSaleOverrides]);
 
   const seatsByType = useMemo(() => {
     const map = new Map<number, FeedSeat[]>();
@@ -312,14 +307,33 @@ export function ImportForm({
     [ticketTypes, forSaleByType],
   );
 
-  const [selectedType, setSelectedType] = useState<number>(() => sellingTypes[0] ?? 0);
-
-  useEffect(() => {
-    if (sellingTypes.length === 0) return;
-    if (!sellingTypes.includes(selectedType)) {
-      setSelectedType(sellingTypes[0]!);
+  const sellingGroups = useMemo(() => {
+    const byName = new Map<string, { label: string; types: number[] }>();
+    for (const type of sellingTypes) {
+      const section = sectionForType(existingSections, type);
+      const label = (section?.name.trim() || labelForType(type, ticketMetaById)).trim();
+      const key = label.toLowerCase();
+      const group = byName.get(key) ?? { label, types: [] };
+      group.types.push(type);
+      byName.set(key, group);
     }
-  }, [sellingTypes, selectedType]);
+    return [...byName.entries()]
+      .sort((a, b) => a[1].label.localeCompare(b[1].label))
+      .map(([key, group]) => ({
+        key,
+        label: group.label,
+        types: group.types,
+        seatCount: group.types.reduce(
+          (sum, type) => sum + (seatsByType.get(type)?.length ?? 0),
+          0,
+        ),
+      }));
+  }, [sellingTypes, existingSections, ticketMetaById, seatsByType]);
+
+  const [selectedGroupKeyState, setSelectedGroupKey] = useState<string | null>(null);
+  const selectedGroup =
+    sellingGroups.find((group) => group.key === selectedGroupKeyState) ??
+    sellingGroups[0];
 
   const classifiableSeats = useMemo(
     () => seats.filter((seat) => isClassifiable(seat.t2mStatus)),
@@ -336,7 +350,13 @@ export function ImportForm({
     return initial;
   });
 
-  const selectedSeats = seatsByType.get(selectedType) ?? [];
+  const selectedSeats = useMemo(() => {
+    if (!selectedGroup) return [];
+    const list = selectedGroup.types.flatMap((type) => seatsByType.get(type) ?? []);
+    return [...list].sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { numeric: true }),
+    );
+  }, [selectedGroup, seatsByType]);
   const selectedClassifiable = selectedSeats.filter((seat) => isClassifiable(seat.t2mStatus));
 
   function setClass(seatId: number, value: UnavailableClass) {
@@ -374,7 +394,7 @@ export function ImportForm({
             meta={ticketMetaById[type]}
             existing={sectionForType(existingSections, type)}
             onForSaleChange={(forSale) =>
-              setForSaleByType((prev) => ({ ...prev, [type]: forSale }))
+              setForSaleOverrides((prev) => ({ ...prev, [type]: forSale }))
             }
           />
         ))}
@@ -409,8 +429,8 @@ export function ImportForm({
         <section className="space-y-4">
           <h2 className="text-lg font-medium text-zinc-900">Map preview</h2>
           <p className="text-sm text-zinc-600">
-            Dark grey fill = not for sale. For-sale seats use Ticket2Me status as fill; Talent /
-            Heart (and other for-sale sections) get one outline around the whole block.
+            Dark grey = not for sale. For-sale seats use your classification when set (direct buy,
+            house, …), otherwise Ticket2Me status. Section color outlines the whole for-sale block.
           </p>
           <div className="overflow-x-auto rounded border border-zinc-200 bg-white p-4 font-mono text-[10px] leading-none">
             {feedPreview.map((row, rowIndex) => (
@@ -430,8 +450,29 @@ export function ImportForm({
                   const forSale = forSaleByType[seat.ticket_id] === true;
                   const statusStyle = t2mStatusStyle(seat.status);
                   const sectionColor = ticketMetaById[seat.ticket_id]?.color ?? "#a1a1aa";
-                  const bg = forSale ? statusStyle.bg : NOT_FOR_SALE_BG;
+                  const classification =
+                    isClassifiable(seat.status) && forSale
+                      ? (classes[seat.seat_id] ??
+                        defaultClassFor(
+                          {
+                            seatId: seat.seat_id,
+                            label: seat.seat_no,
+                            ticketTypeId: seat.ticket_id,
+                            t2mStatus: seat.status,
+                          },
+                          savedClassifications,
+                        ))
+                      : undefined;
+                  const classStyle = classification
+                    ? CLASS_COLORS[classification]
+                    : undefined;
+                  const bg = !forSale
+                    ? NOT_FOR_SALE_BG
+                    : (classStyle?.bg ?? statusStyle.bg);
                   const text = forSale ? "#18181b" : "#fafafa";
+                  const titleLabel = !forSale
+                    ? "not for sale"
+                    : (classStyle?.label ?? statusStyle.label);
                   return (
                     <span
                       key={`${row.rowNumber}-${colIndex}`}
@@ -448,11 +489,7 @@ export function ImportForm({
                           sectionColor,
                         ),
                       }}
-                      title={
-                        forSale
-                          ? `${seat.seat_no} · ${statusStyle.label}`
-                          : `${seat.seat_no} · not for sale`
-                      }
+                      title={`${seat.seat_no} · ${titleLabel}`}
                     >
                       {seat.seat_no}
                     </span>
@@ -469,15 +506,26 @@ export function ImportForm({
               />
               Not for sale
             </span>
-            {T2M_STATUS_LEGEND.map((style) => (
-              <span key={style.label} className="inline-flex items-center gap-1.5">
+            {(Object.keys(CLASS_COLORS) as UnavailableClass[]).map((key) => (
+              <span key={key} className="inline-flex items-center gap-1.5">
                 <span
                   className="inline-block h-3 w-3 rounded-sm border border-zinc-300"
-                  style={{ backgroundColor: style.bg }}
+                  style={{ backgroundColor: CLASS_COLORS[key].bg }}
                 />
-                {style.label}
+                {CLASS_COLORS[key].label}
               </span>
             ))}
+            {T2M_STATUS_LEGEND.filter((style) => style.label === "On sale (T2M)").map(
+              (style) => (
+                <span key={style.label} className="inline-flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-3 w-3 rounded-sm border border-zinc-300"
+                    style={{ backgroundColor: style.bg }}
+                  />
+                  {style.label}
+                </span>
+              ),
+            )}
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-zinc-700">
             {Array.from(
@@ -526,14 +574,13 @@ export function ImportForm({
               <label className="block max-w-md text-sm text-zinc-800">
                 Section
                 <select
-                  value={selectedType}
-                  onChange={(event) => setSelectedType(Number(event.target.value))}
+                  value={selectedGroup?.key ?? ""}
+                  onChange={(event) => setSelectedGroupKey(event.target.value)}
                   className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-2 text-zinc-900"
                 >
-                  {sellingTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {labelForType(type, ticketMetaById)} (
-                      {seatsByType.get(type)?.length ?? 0} seats)
+                  {sellingGroups.map((group) => (
+                    <option key={group.key} value={group.key}>
+                      {group.label} ({group.seatCount} seats)
                     </option>
                   ))}
                 </select>
