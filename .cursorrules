@@ -1,0 +1,10 @@
+spec.md is the source of truth
+strict TypeScript, and Tailwind for styling
+business rules are pure functions in lib/rules, each with a Vitest test
+store money in centavos
+validate every input on the server
+never use real buyer, seat-plan or payment data
+never read, print or commit .env files
+AI can never set an order to Paid
+ask before implementing a rule marked [PROPOSED]
+ask before adding a library or service
