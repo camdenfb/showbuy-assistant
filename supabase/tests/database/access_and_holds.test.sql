@@ -1,7 +1,18 @@
--- Requires migration + seed applied (e.g. supabase db reset locally).
+-- Requires migrations + seed (e.g. supabase db reset locally).
 begin;
 
-select plan(8);
+select plan(13);
+
+select is(
+  (
+    select count(*)::integer
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'hold_seats'
+  ),
+  1,
+  'exactly one hold_seats function exists'
+);
 
 -- ---------------------------------------------------------------------------
 -- anon denied
@@ -27,7 +38,9 @@ select throws_ok(
     '{"tickets":[{"regularPriceCentavos":500000,"pricePerSeatCentavos":500000}],"totalCentavos":500000,"appliedDiscount":"none","cardRebateCentavos":0}'::jsonb,
     null,
     'none',
-    'a1111111-a111-a111-a111-a11111111111'
+    'a1111111-a111-a111-a111-a11111111111',
+    null,
+    null
   ) $q$,
   '42501',
   'anon cannot execute hold_seats'
@@ -57,7 +70,9 @@ select throws_ok(
     '{"tickets":[{"regularPriceCentavos":500000,"pricePerSeatCentavos":500000}],"totalCentavos":500000,"appliedDiscount":"none","cardRebateCentavos":0}'::jsonb,
     null,
     'none',
-    'a1111111-a111-a111-a111-a11111111111'
+    'a1111111-a111-a111-a111-a11111111111',
+    null,
+    null
   ) $q$,
   '42501',
   'authenticated cannot execute hold_seats'
@@ -67,7 +82,6 @@ select throws_ok(
 -- service_role: two holds on one seat → exactly one wins that seat
 -- ---------------------------------------------------------------------------
 reset role;
-
 set local role service_role;
 
 select lives_ok(
@@ -83,12 +97,13 @@ select lives_ok(
     '{"tickets":[{"regularPriceCentavos":500000,"pricePerSeatCentavos":500000}],"totalCentavos":500000,"appliedDiscount":"none","cardRebateCentavos":0}'::jsonb,
     null,
     'none',
-    'a1111111-a111-a111-a111-a11111111111'
+    'a1111111-a111-a111-a111-a11111111111',
+    null,
+    null
   ) $q$,
   'first hold on C1 succeeds'
 );
 
--- Same seat as first and second choice so fallback cannot steal another seat
 select throws_ok(
   $q$ select public.hold_seats(
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
@@ -102,7 +117,9 @@ select throws_ok(
     '{"tickets":[{"regularPriceCentavos":500000,"pricePerSeatCentavos":500000}],"totalCentavos":500000,"appliedDiscount":"none","cardRebateCentavos":0}'::jsonb,
     null,
     'none',
-    'a1111111-a111-a111-a111-a11111111111'
+    'a1111111-a111-a111-a111-a11111111111',
+    null,
+    null
   ) $q$,
   'P0001',
   'second hold on same seat fails'
@@ -115,6 +132,36 @@ select is(
       and active_order_id is not null),
   1,
   'exactly one active hold on contested seat'
+);
+
+-- ---------------------------------------------------------------------------
+-- Suggested choice: only those seats; never fall back to first/second
+-- ---------------------------------------------------------------------------
+select throws_ok(
+  $q$ select public.hold_seats(
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    'suggest-fail-1',
+    'Suggest Fail', 'sf@example.test', '09000000009',
+    'a2222222-a222-a222-a222-a22222222222',
+    1,
+    array['a4000005-a400-a400-a400-a40000000005']::uuid[],
+    array['a4000005-a400-a400-a400-a40000000005']::uuid[],
+    '{"tickets":[{"regularPriceCentavos":500000,"pricePerSeatCentavos":500000}],"totalCentavos":500000,"appliedDiscount":"none","cardRebateCentavos":0}'::jsonb,
+    '{"tickets":[{"regularPriceCentavos":500000,"pricePerSeatCentavos":500000}],"totalCentavos":500000,"appliedDiscount":"none","cardRebateCentavos":0}'::jsonb,
+    null,
+    'none',
+    'a1111111-a111-a111-a111-a11111111111',
+    array['a4000001-a400-a400-a400-a40000000001']::uuid[],
+    '{"tickets":[{"regularPriceCentavos":500000,"pricePerSeatCentavos":500000}],"totalCentavos":500000,"appliedDiscount":"none","cardRebateCentavos":0}'::jsonb
+  ) $q$,
+  'P0001',
+  'unavailable suggested choice fails without falling back'
+);
+
+select is(
+  (select status::text from public.seats where id = 'a4000005-a400-a400-a400-a40000000005'),
+  'direct_buy',
+  'first-choice seat untouched when suggested hold fails'
 );
 
 -- ---------------------------------------------------------------------------
@@ -133,7 +180,9 @@ select lives_ok(
     '{"tickets":[{"regularPriceCentavos":500000,"pricePerSeatCentavos":400000}],"totalCentavos":400000,"appliedDiscount":"promo","cardRebateCentavos":0}'::jsonb,
     'earlybird',
     'none',
-    'a1111111-a111-a111-a111-a11111111111'
+    'a1111111-a111-a111-a111-a11111111111',
+    null,
+    null
   ) $q$,
   'first promo order succeeds'
 );
@@ -151,7 +200,9 @@ select throws_ok(
     '{"tickets":[{"regularPriceCentavos":500000,"pricePerSeatCentavos":400000}],"totalCentavos":400000,"appliedDiscount":"promo","cardRebateCentavos":0}'::jsonb,
     'earlybird',
     'none',
-    'a1111111-a111-a111-a111-a11111111111'
+    'a1111111-a111-a111-a111-a11111111111',
+    null,
+    null
   ) $q$,
   'P0001',
   'second promo order hits usage limit'

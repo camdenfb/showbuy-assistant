@@ -28,6 +28,7 @@ function order(overrides: Partial<Order> & Pick<Order, "status">): Order {
     claimEmailSentAt: null,
     claimCode: null,
     heldSeatIds: ["c5"],
+    suggestedChoice: null,
     appliedDiscount: "none",
     manualReason: null,
     ...overrides,
@@ -92,13 +93,32 @@ describe("order status rules", () => {
     expect(unpaid.claimCode).toBeNull();
   });
 
+  test("a claim code is refused when any held seat is missing from the seat list", () => {
+    const paid = order({
+      status: "paid",
+      paymentConfirmedAt: "2026-11-22T00:00:00.000Z",
+      heldSeatIds: ["c5", "c6"],
+    });
+    const onlyOne = heldSeat({ status: "sold_direct" });
+
+    expect(claimCodeAllowed(paid, [onlyOne])).toBe(false);
+    expect(claimCodeAllowed(paid, [])).toBe(false);
+    expect(
+      claimCodeAllowed(paid, [
+        heldSeat({ id: "c5", status: "sold_direct" }),
+        heldSeat({ id: "c6", number: 6, label: "C6", status: "sold_direct" }),
+      ]),
+    ).toBe(true);
+  });
+
   test("AC23: Process orders sends one claim code for a paid order, and a failed send stays Paid", () => {
     const paid = order({
       status: "paid",
       paymentConfirmedAt: "2026-11-22T00:00:00.000Z",
     });
+    const seats = { "order-1": [heldSeat({ status: "sold_direct" })] };
 
-    expect(planProcessOrders([paid])).toEqual([
+    expect(planProcessOrders([paid], seats)).toEqual([
       { orderId: "order-1", task: "claim_code" },
     ]);
 
@@ -123,7 +143,7 @@ describe("order status rules", () => {
     expect(failed.status).toBe("paid");
     expect(failed.claimEmailSentAt).toBeNull();
     expect(failed.claimCode).toBe("CLAIM-1");
-    expect(planProcessOrders([failed])).toEqual([
+    expect(planProcessOrders([failed], seats)).toEqual([
       { orderId: "order-1", task: "claim_code" },
     ]);
   });
@@ -181,8 +201,12 @@ describe("order status rules", () => {
       status: "paid",
       paymentConfirmedAt: "2026-11-22T00:00:00.000Z",
     });
+    const seats = {
+      "order-1": [heldSeat()],
+      "order-2": [heldSeat({ status: "sold_direct" })],
+    };
 
-    const first = planProcessOrders([waiting, paid]);
+    const first = planProcessOrders([waiting, paid], seats);
     const afterPayment = applyProcessResult(
       waiting,
       "payment_details",
@@ -197,7 +221,7 @@ describe("order status rules", () => {
       "2026-11-22T01:00:00.000Z",
       "CLAIM-2",
     );
-    const second = planProcessOrders([afterPayment, afterClaim]);
+    const second = planProcessOrders([afterPayment, afterClaim], seats);
 
     expect(first).toEqual([
       { orderId: "order-1", task: "payment_details" },

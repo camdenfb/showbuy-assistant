@@ -18,6 +18,7 @@ export type Order = {
   claimEmailSentAt: string | null;
   claimCode: string | null;
   heldSeatIds: string[];
+  suggestedChoice: string[] | null;
   appliedDiscount: "none" | "promo" | "rebate";
   manualReason: string | null;
 };
@@ -107,10 +108,12 @@ export function confirmPayment(
 
 export function claimCodeAllowed(order: Order, seats: Seat[]): boolean {
   if (order.status !== "paid" || order.paymentConfirmedAt === null) return false;
-  const held = new Set(order.heldSeatIds);
-  return seats
-    .filter((seat) => held.has(seat.id))
-    .every((seat) => seat.conflict === null);
+  if (order.heldSeatIds.length === 0) return false;
+  const byId = new Map(seats.map((seat) => [seat.id, seat]));
+  return order.heldSeatIds.every((id) => {
+    const seat = byId.get(id);
+    return seat !== undefined && seat.conflict === null;
+  });
 }
 
 export function planProcessOrders(
