@@ -14,12 +14,15 @@ export default async function DashboardPage() {
     .order("starts_at");
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
+    <main className="mx-auto min-h-screen max-w-3xl bg-white px-6 py-12 text-zinc-900">
       <h1 className="text-2xl font-semibold text-zinc-900">Dashboard</h1>
       <p className="mt-2 text-sm text-zinc-600">Signed in as {auth.email}</p>
       <ul className="mt-8 space-y-3">
         {(showbuys ?? []).map((showbuy) => (
-          <li key={showbuy.id} className="flex items-center justify-between border-b py-3">
+          <li
+            key={showbuy.id}
+            className="flex items-center justify-between border-b border-zinc-200 py-3 text-zinc-900"
+          >
             <span>{showbuy.name}</span>
             <Link
               className="text-sm font-medium text-zinc-900 underline"

@@ -168,7 +168,7 @@ describe("Ticket2Me seat map import rules", () => {
     expect(ticketTypesFromCells(parsed.feed)).toEqual([101, 102]);
   });
 
-  test("classifications mark unavailable seats; stale non-unavailable classification fails the map", () => {
+  test("classifications mark unavailable seats; on-sale classification fails the map", () => {
     const parsed = validateT2mWire(
       wire([
         row(1, [
@@ -200,5 +200,30 @@ describe("Ticket2Me seat map import rules", () => {
       regularPriceBySection: { "sec-a": 500_000 },
     });
     expect(stale.ok).toBe(false);
+  });
+
+  test("sold T2M seats can be reclassified as pull-outs or kept as sold_t2m", () => {
+    const parsed = validateT2mWire(
+      wire([
+        row(1, [
+          { ticket_id: 101, seat_id: 1, seat_no: "C1", status: 2 },
+          { ticket_id: 101, seat_id: 2, seat_no: "C2", status: 2 },
+        ]),
+      ]),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+
+    const mapped = mapT2mFeed({
+      feed: parsed.feed,
+      showbuyId: "show-1",
+      sectionByTicketType: { 101: "sec-a" },
+      classifications: { 1: "direct_buy", 2: "sold_t2m" },
+      regularPriceBySection: { "sec-a": 500_000 },
+    });
+    expect(mapped.ok).toBe(true);
+    if (!mapped.ok) return;
+    expect(mapped.seats.find((s) => s.label === "C1")?.status).toBe("direct_buy");
+    expect(mapped.seats.find((s) => s.label === "C2")?.status).toBe("sold_t2m");
   });
 });

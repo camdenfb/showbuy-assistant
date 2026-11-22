@@ -23,7 +23,25 @@ export type T2mFeedRow = {
   seats: T2mSeatCell[];
 };
 
-export type UnavailableClass = "house" | "direct_buy" | "sold_direct";
+/** Classification for unavailable (-1) or sold (2) Ticket2Me seats. */
+export type UnavailableClass =
+  | "house"
+  | "direct_buy"
+  | "sold_direct"
+  | "sold_t2m";
+
+const UNAVAILABLE_CLASSES = new Set<UnavailableClass>([
+  "house",
+  "direct_buy",
+  "sold_direct",
+]);
+
+const SOLD_CLASSES = new Set<UnavailableClass>([
+  "house",
+  "direct_buy",
+  "sold_direct",
+  "sold_t2m",
+]);
 
 export type MappedSeat = Seat & {
   t2mSeatId: number;
@@ -147,8 +165,16 @@ export function mapT2mFeed(input: {
       if (!sectionId) return { ok: false, reason: "unmapped_ticket_type" };
 
       const classification = input.classifications[cell.seat_id];
-      if (classification !== undefined && cell.status !== -1) {
-        return { ok: false, reason: "stale_classification" };
+      if (classification !== undefined) {
+        if (cell.status === 0) {
+          return { ok: false, reason: "stale_classification" };
+        }
+        if (cell.status === -1 && !UNAVAILABLE_CLASSES.has(classification)) {
+          return { ok: false, reason: "stale_classification" };
+        }
+        if (cell.status === 2 && !SOLD_CLASSES.has(classification)) {
+          return { ok: false, reason: "stale_classification" };
+        }
       }
 
       const t2mStatus = t2mStatusFromWire(cell.status);
@@ -167,6 +193,8 @@ export function mapT2mFeed(input: {
       let status: SeatStatus = base.status;
       if (cell.status === -1) {
         status = classification ?? "house";
+      } else if (cell.status === 2) {
+        status = classification ?? "sold_t2m";
       }
 
       const price = input.regularPriceBySection[sectionId] ?? 0;

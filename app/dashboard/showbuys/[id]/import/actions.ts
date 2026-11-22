@@ -11,9 +11,80 @@ import {
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
 export type ImportState =
-  | { ok: true }
+  | { ok: true; message?: string }
   | { ok: false; reason: string; reviewAgain?: boolean };
 
+export type SectionSaveState =
+  | { ok: true; message: string }
+  | { ok: false; reason: string };
+
+const IMPORT_CLASSES = new Set<UnavailableClass>([
+  "house",
+  "direct_buy",
+  "sold_direct",
+  "sold_t2m",
+]);
+
+export async function saveSectionSettings(
+  showbuyId: string,
+  _prev: SectionSaveState | null,
+  formData: FormData,
+): Promise<SectionSaveState> {
+  const auth = await requireShowbuyer();
+  if (!auth.ok) return { ok: false, reason: auth.reason };
+
+  const ticketType = Number(formData.get("ticketType"));
+  const sectionIdRaw = String(formData.get("sectionId") ?? "").trim();
+  const name = String(formData.get("sectionName") ?? "").trim();
+  const pesos = Number(formData.get("sectionPricePesos"));
+  const isForSale = formData.get("sectionForSale") === "on";
+
+  if (!Number.isFinite(ticketType)) return { ok: false, reason: "invalid_ticket_type" };
+  if (!name) return { ok: false, reason: "name_required" };
+  if (!Number.isFinite(pesos) || pesos < 0) return { ok: false, reason: "invalid_price" };
+
+  const priceCentavos = Math.round(pesos * 100);
+  const supabase = createSupabaseServiceClient();
+
+  const { data: showbuy } = await supabase
+    .from("showbuys")
+    .select("id")
+    .eq("id", showbuyId)
+    .maybeSingle();
+  if (!showbuy) return { ok: false, reason: "showbuy_not_found" };
+
+  if (sectionIdRaw) {
+    const { data: updated, error } = await supabase
+      .from("sections")
+      .update({
+        name,
+        regular_price_centavos: priceCentavos,
+        is_for_sale: isForSale,
+        t2m_ticket_type_ids: [ticketType],
+      })
+      .eq("id", sectionIdRaw)
+      .eq("showbuy_id", showbuyId)
+      .select("id")
+      .maybeSingle();
+    if (error) return { ok: false, reason: error.message };
+    if (!updated) return { ok: false, reason: "section_not_found" };
+    return { ok: true, message: "Section saved" };
+  }
+
+  const id = crypto.randomUUID();
+  const { error } = await supabase.from("sections").insert({
+    id,
+    showbuy_id: showbuyId,
+    name,
+    regular_price_centavos: priceCentavos,
+    t2m_ticket_type_ids: [ticketType],
+    is_for_sale: isForSale,
+  });
+  if (error) return { ok: false, reason: error.message };
+  return { ok: true, message: "Section saved" };
+}
+
+/** Seat map import uses saved section rows from the DB (not Ticket2Me prices). */
 export async function saveSeatMapImport(
   showbuyId: string,
   _prev: ImportState | null,
@@ -23,10 +94,6 @@ export async function saveSeatMapImport(
   if (!auth.ok) return { ok: false, reason: auth.reason };
 
   const confirmReplace = formData.get("confirmReplace") === "on";
-  const ticketTypes = formData.getAll("ticketType").map((v) => Number(v));
-  const sectionIds = formData.getAll("sectionId").map(String);
-  const sectionNames = formData.getAll("sectionName").map(String);
-  const sectionPrices = formData.getAll("sectionPricePesos").map(String);
 
   try {
     const client = createTicket2MeClient();
@@ -40,12 +107,12 @@ export async function saveSeatMapImport(
 
     const feed = await client.fetchSeatPlan(showbuy.t2m_show_id);
     const types = ticketTypesFromCells(feed);
-    if (
-      types.length !== ticketTypes.length ||
-      types.some((type, index) => type !== ticketTypes[index])
-    ) {
-      return { ok: false, reason: "ticket_types_changed", reviewAgain: true };
-    }
+
+    const { data: dbSections, error: sectionsError } = await supabase
+      .from("sections")
+      .select("id, name, regular_price_centavos, t2m_ticket_type_ids, is_for_sale")
+      .eq("showbuy_id", showbuyId);
+    if (sectionsError) return { ok: false, reason: sectionsError.message };
 
     const sectionByTicketType: Record<number, string> = {};
     const regularPriceBySection: Record<string, number> = {};
@@ -57,22 +124,24 @@ export async function saveSeatMapImport(
       isForSale: boolean;
     }[] = [];
 
-    for (let i = 0; i < types.length; i++) {
-      const sectionId = sectionIds[i] || crypto.randomUUID();
-      const pesos = Number(sectionPrices[i] ?? "");
-      if (!Number.isFinite(pesos) || pesos < 0) {
-        return { ok: false, reason: "invalid_price" };
+    for (const type of types) {
+      const existing = (dbSections ?? []).find((section) =>
+        section.t2m_ticket_type_ids?.includes(type),
+      );
+      if (!existing) {
+        return {
+          ok: false,
+          reason: `Save section settings for ticket type ${type} before importing seats`,
+        };
       }
-      const price = Math.round(pesos * 100);
-      const isForSale = formData.get(`sectionForSale-${types[i]}`) === "on";
-      sectionByTicketType[types[i]!] = sectionId;
-      regularPriceBySection[sectionId] = price;
+      sectionByTicketType[type] = existing.id;
+      regularPriceBySection[existing.id] = existing.regular_price_centavos;
       sectionsPayload.push({
-        id: sectionId,
-        name: sectionNames[i] || `Section ${types[i]}`,
-        regularPriceCentavos: price,
-        t2mTicketTypeIds: [types[i]!],
-        isForSale,
+        id: existing.id,
+        name: existing.name,
+        regularPriceCentavos: existing.regular_price_centavos,
+        t2mTicketTypeIds: [type],
+        isForSale: existing.is_for_sale !== false,
       });
     }
 
@@ -80,8 +149,8 @@ export async function saveSeatMapImport(
     for (const [key, value] of formData.entries()) {
       if (!key.startsWith("class-")) continue;
       const seatId = Number(key.slice("class-".length));
-      const cls = String(value);
-      if (cls === "house" || cls === "direct_buy" || cls === "sold_direct") {
+      const cls = String(value) as UnavailableClass;
+      if (IMPORT_CLASSES.has(cls)) {
         classifications[seatId] = cls;
       }
     }
@@ -123,7 +192,13 @@ export async function saveSeatMapImport(
       p_seats: seatsPayload,
     });
 
-    if (error) return { ok: false, reason: error.message };
+    if (error) {
+      const message = error.message;
+      if (message.includes("confirm replace required")) {
+        return { ok: false, reason: "confirm replace required" };
+      }
+      return { ok: false, reason: message };
+    }
 
     redirect(`/dashboard/showbuys/${showbuyId}/import?saved=1`);
   } catch (error) {

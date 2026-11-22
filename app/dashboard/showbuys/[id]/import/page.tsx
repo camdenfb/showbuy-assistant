@@ -1,11 +1,21 @@
 import { redirect } from "next/navigation";
 import { createTicket2MeClient } from "@/lib/adapters/ticket2me";
 import { requireShowbuyer } from "@/lib/auth/require-showbuyer";
-import { ticketTypesFromCells } from "@/lib/rules/import-map";
+import {
+  ticketTypesFromCells,
+  type UnavailableClass,
+} from "@/lib/rules/import-map";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { ImportForm } from "./import-form";
 
 type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: string }> };
+
+const CLASSIFICATIONS = new Set<UnavailableClass>([
+  "house",
+  "direct_buy",
+  "sold_direct",
+  "sold_t2m",
+]);
 
 export default async function ImportSeatMapPage({ params, searchParams }: Props) {
   const auth = await requireShowbuyer();
@@ -31,16 +41,39 @@ export default async function ImportSeatMapPage({ params, searchParams }: Props)
     .select("id", { count: "exact", head: true })
     .eq("showbuy_id", id);
 
-  const client = createTicket2MeClient();
-  const feed = await client.fetchSeatPlan(showbuy.t2m_show_id);
-  const types = ticketTypesFromCells(feed);
+  const { data: existingSeats } = await supabase
+    .from("seats")
+    .select("t2m_seat_id, status")
+    .eq("showbuy_id", id);
 
-  const unavailable = feed.flatMap((row) =>
-    row.seats.filter((seat) => seat.seat_no !== "EMPTY" && seat.status === -1),
+  const savedClassifications: Record<number, UnavailableClass> = {};
+  for (const seat of existingSeats ?? []) {
+    if (CLASSIFICATIONS.has(seat.status as UnavailableClass)) {
+      savedClassifications[seat.t2m_seat_id] = seat.status as UnavailableClass;
+    }
+  }
+
+  const client = createTicket2MeClient();
+  const [feed, tickets] = await Promise.all([
+    client.fetchSeatPlan(showbuy.t2m_show_id),
+    client.fetchShowTickets(showbuy.t2m_show_id),
+  ]);
+  const types = ticketTypesFromCells(feed);
+  const ticketMetaById = Object.fromEntries(tickets.map((ticket) => [ticket.id, ticket]));
+
+  const seats = feed.flatMap((row) =>
+    row.seats
+      .filter((seat) => seat.seat_no !== "EMPTY")
+      .map((seat) => ({
+        seatId: seat.seat_id,
+        label: seat.seat_no,
+        ticketTypeId: seat.ticket_id,
+        t2mStatus: seat.status,
+      })),
   );
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-12">
+    <main className="mx-auto min-h-screen max-w-6xl bg-white px-6 py-12 text-zinc-900">
       <h1 className="text-2xl font-semibold text-zinc-900">Import seat map</h1>
       <p className="mt-2 text-sm text-zinc-600">{showbuy.name}</p>
       {query.saved ? (
@@ -51,11 +84,10 @@ export default async function ImportSeatMapPage({ params, searchParams }: Props)
       <ImportForm
         showbuyId={id}
         ticketTypes={types}
+        ticketMetaById={ticketMetaById}
         existingSections={existingSections ?? []}
-        unavailable={unavailable.map((seat) => ({
-          seatId: seat.seat_id,
-          label: seat.seat_no,
-        }))}
+        seats={seats}
+        savedClassifications={savedClassifications}
         hasExistingSeats={(seatCount ?? 0) > 0}
         feedPreview={feed}
       />

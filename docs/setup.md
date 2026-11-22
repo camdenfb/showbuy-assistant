@@ -119,11 +119,12 @@ SUPABASE_SECRET_KEY=
 ANTHROPIC_API_KEY=
 CRON_SECRET=
 DEMO_MODE=true
+TICKET2ME_EVENT_SERVICE_URL=
 ```
 
 - `ANTHROPIC_API_KEY` comes from the Claude Console. Set a monthly spend limit there. It's needed from slice 4, both here and in Vercel.
 - `CRON_SECRET` is any long random value, for example from `openssl rand -hex 32`.
-- Email and Ticket2Me settings aren't needed in demo mode, which uses an on-screen outbox and a fictional seat plan.
+- Email isn't needed in demo mode (on-screen outbox). With `DEMO_MODE=true`, Ticket2Me uses the fictional Harbor Lights seat plan. With `DEMO_MODE=false`, set `TICKET2ME_EVENT_SERVICE_URL` to Ticket2Me's event-service base URL so the server can read `/show/{id}/get_seat_plan`. Leave `DEMO_MODE` unset only if you want fail-closed (no Ticket2Me calls).
 
 Connect the database:
 

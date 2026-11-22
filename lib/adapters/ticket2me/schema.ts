@@ -19,3 +19,18 @@ export const t2mWireSchema = z.object({
     ),
   }),
 });
+
+export const t2mTicketsSchema = z.object({
+  success: z.boolean(),
+  status: z.string(),
+  data: z.object({
+    tickets: z.array(
+      z.object({
+        id: z.number(),
+        title: z.string(),
+        price: z.string(),
+        color: z.string(),
+      }),
+    ),
+  }),
+});

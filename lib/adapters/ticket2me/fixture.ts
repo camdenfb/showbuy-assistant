@@ -39,3 +39,19 @@ export const DEMO_SEAT_PLAN: T2mWireResponse = {
     ],
   },
 };
+
+/** Fictional ticket types matching DEMO_SEAT_PLAN ticket_id values. */
+export const DEMO_SHOW_TICKETS = [
+  {
+    id: 101,
+    title: "Orchestra — Center",
+    pricePesos: 5000,
+    color: "#2563eb",
+  },
+  {
+    id: 102,
+    title: "Balcony — Center",
+    pricePesos: 3500,
+    color: "#ca8a04",
+  },
+] as const;
