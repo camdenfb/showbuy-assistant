@@ -25,6 +25,7 @@ export type ShowbuyFormValues = {
   otherExpenses: { label: string; amountPesos: number | "" }[];
   claimCodeTemplate: string;
   deductCardRebates: boolean;
+  syncIntervalMinutes: number | "";
 };
 
 type Props =
@@ -39,7 +40,8 @@ type Props =
       t2mLocked: boolean;
     };
 
-const DEFAULT_TEMPLATE = "{section}{order}-{seat}-{qty}{discount}{random}";
+const DEFAULT_TEMPLATE =
+  "{section}{order}-{first_seat}-{qty}{discount}{random}";
 
 export function defaultShowbuyFormValues(
   overrides: Partial<ShowbuyFormValues> = {},
@@ -56,6 +58,7 @@ export function defaultShowbuyFormValues(
     otherExpenses: [{ label: "", amountPesos: "" }],
     claimCodeTemplate: DEFAULT_TEMPLATE,
     deductCardRebates: false,
+    syncIntervalMinutes: 60,
     ...overrides,
   };
 }
@@ -286,8 +289,28 @@ export function ShowbuyForm(props: Props) {
           className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-2 font-mono text-sm"
         />
         <span className="mt-1 block text-xs text-zinc-500">
-          Placeholders: {"{section}"} {"{order}"} {"{seat}"} {"{qty}"} {"{discount}"}{" "}
-          {"{random}"} — must include {"{order}"} and {"{random}"} (3 digits).
+          Placeholders: {"{section}"} {"{order}"} {"{first_seat}"} {"{seat}"} {"{qty}"}{" "}
+          {"{discount}"} {"{random}"}. {"{order}"} is 01, 02, … per showbuy.{" "}
+          {"{discount}"} is PW (PWD), SR (senior), or NO. Must include {"{order}"} and{" "}
+          {"{random}"} (3 digits).
+        </span>
+      </label>
+
+      <label className="block text-sm">
+        Reconcile interval (minutes)
+        <input
+          name="syncIntervalMinutes"
+          type="number"
+          min={1}
+          max={1440}
+          step={1}
+          required
+          defaultValue={numberDefault(props.initial.syncIntervalMinutes)}
+          className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-2"
+        />
+        <span className="mt-1 block text-xs text-zinc-500">
+          Cron runs hourly; each showbuy only syncs when this many minutes have passed since
+          the last check. Order page loads always sync.
         </span>
       </label>
 

@@ -88,8 +88,9 @@ describe("parseShowbuySetupInput", () => {
     feePercent: 8,
     capitalPesos: 130000,
     otherExpenses: [{ label: "Marketing", amountPesos: 5000 }],
-    claimCodeTemplate: "{section}{order}-{seat}-{qty}{discount}{random}",
+    claimCodeTemplate: "{section}{order}-{first_seat}-{qty}{discount}{random}",
     deductCardRebates: false,
+    syncIntervalMinutes: 60,
   };
 
   test("accepts a valid create payload and stores starts_at as UTC instant", () => {

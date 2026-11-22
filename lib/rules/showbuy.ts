@@ -94,6 +94,7 @@ const setupInputSchema = z.object({
   otherExpenses: z.array(expenseInputSchema),
   claimCodeTemplate: z.string().trim().min(1),
   deductCardRebates: z.boolean(),
+  syncIntervalMinutes: z.number().int().min(1).max(24 * 60),
 });
 
 export type ShowbuySetupValue = {
@@ -108,6 +109,7 @@ export type ShowbuySetupValue = {
   otherExpenses: ShowbuyExpense[];
   claimCodeTemplate: string;
   deductCardRebates: boolean;
+  syncIntervalMinutes: number;
 };
 
 /** Parse `YYYY-MM-DDTHH:mm` as Asia/Manila wall time → Date (UTC instant). */
@@ -180,6 +182,7 @@ export function parseShowbuySetupInput(
       otherExpenses: finance.value.otherExpenses,
       claimCodeTemplate: data.claimCodeTemplate,
       deductCardRebates: finance.value.deductCardRebates,
+      syncIntervalMinutes: data.syncIntervalMinutes,
     },
   };
 }

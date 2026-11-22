@@ -15,6 +15,7 @@ type Props = { params: Promise<{ id: string }>; searchParams: Promise<{ saved?: 
 const CLASSIFICATIONS = new Set<UnavailableClass>([
   "house",
   "direct_buy",
+  "on_hold",
   "sold_direct",
   "sold_t2m",
 ]);

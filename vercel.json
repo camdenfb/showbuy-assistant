@@ -1,3 +1,11 @@
 {
-    "git": { "deploymentEnabled": false }
-  }
+  "git": {
+    "deploymentEnabled": false
+  },
+  "crons": [
+    {
+      "path": "/api/reconcile",
+      "schedule": "0 * * * *"
+    }
+  ]
+}

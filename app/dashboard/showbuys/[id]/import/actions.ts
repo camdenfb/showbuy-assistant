@@ -21,6 +21,7 @@ export type SectionSaveState =
 const IMPORT_CLASSES = new Set<UnavailableClass>([
   "house",
   "direct_buy",
+  "on_hold",
   "sold_direct",
   "sold_t2m",
 ]);

@@ -1,12 +1,11 @@
 import { redirect } from "next/navigation";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { requireShowbuyer } from "@/lib/auth/require-showbuyer";
-import {
-  dateToManilaLocalInput,
-  showbuyT2mFieldsLocked,
-} from "@/lib/rules/showbuy";
+import { showbuyT2mFieldsLocked } from "@/lib/rules/showbuy";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { defaultShowbuyFormValues, ShowbuyForm } from "../../showbuy-form";
+import { SettingsForm } from "./settings-form";
+
+export const instant = false;
 
 type Props = { params: Promise<{ id: string }> };
 
@@ -34,7 +33,7 @@ export default async function ShowbuySettingsPage({ params }: Props) {
   const { data: showbuy } = await supabase
     .from("showbuys")
     .select(
-      "id, name, event_url, t2m_show_id, starts_at, has_backend_access, coverage, t2m_fee_percent, capital_investment_centavos, other_expenses, claim_code_template, deduct_card_rebates",
+      "id, name, event_url, t2m_show_id, starts_at, has_backend_access, coverage, t2m_fee_percent, capital_investment_centavos, other_expenses, claim_code_template, deduct_card_rebates, sync_interval_minutes",
     )
     .eq("id", id)
     .maybeSingle();
@@ -62,15 +61,14 @@ export default async function ShowbuySettingsPage({ params }: Props) {
           ? " — for-sale sections are set on import."
           : " — every section is for sale."}
       </p>
-      <ShowbuyForm
-        mode="edit"
+      <SettingsForm
         showbuyId={id}
         t2mLocked={t2mLocked}
-        initial={defaultShowbuyFormValues({
+        input={{
           name: showbuy.name,
           eventUrl: showbuy.event_url,
           t2mShowId: showbuy.t2m_show_id,
-          startsAtManila: dateToManilaLocalInput(new Date(showbuy.starts_at)),
+          startsAtIso: showbuy.starts_at,
           hasBackendAccess: showbuy.has_backend_access,
           coverage: showbuy.coverage === "partial" ? "partial" : "full",
           feePercent: Number(showbuy.t2m_fee_percent),
@@ -78,7 +76,8 @@ export default async function ShowbuySettingsPage({ params }: Props) {
           otherExpenses: parseExpenses(showbuy.other_expenses),
           claimCodeTemplate: showbuy.claim_code_template,
           deductCardRebates: showbuy.deduct_card_rebates,
-        })}
+          syncIntervalMinutes: showbuy.sync_interval_minutes,
+        }}
       />
     </main>
   );

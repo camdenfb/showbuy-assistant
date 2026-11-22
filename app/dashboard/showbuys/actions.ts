@@ -40,6 +40,7 @@ function readSetupFields(formData: FormData) {
     otherExpenses: readExpenses(formData),
     claimCodeTemplate: String(formData.get("claimCodeTemplate") ?? ""),
     deductCardRebates: formData.get("deductCardRebates") === "on",
+    syncIntervalMinutes: Number(formData.get("syncIntervalMinutes")),
   };
 }
 
@@ -55,6 +56,7 @@ function rowFromParsed(value: {
   otherExpenses: ShowbuyExpense[];
   claimCodeTemplate: string;
   deductCardRebates: boolean;
+  syncIntervalMinutes: number;
 }) {
   return {
     name: value.name,
@@ -68,6 +70,7 @@ function rowFromParsed(value: {
     other_expenses: value.otherExpenses,
     claim_code_template: value.claimCodeTemplate,
     deduct_card_rebates: value.deductCardRebates,
+    sync_interval_minutes: value.syncIntervalMinutes,
   };
 }
 
@@ -137,6 +140,7 @@ export async function updateShowbuy(
         other_expenses: full.other_expenses,
         claim_code_template: full.claim_code_template,
         deduct_card_rebates: full.deduct_card_rebates,
+        sync_interval_minutes: full.sync_interval_minutes,
       }
     : full;
 

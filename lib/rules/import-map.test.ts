@@ -202,6 +202,27 @@ describe("Ticket2Me seat map import rules", () => {
     expect(stale.ok).toBe(false);
   });
 
+  test("unavailable seats can be classified as on_hold", () => {
+    const parsed = validateT2mWire(
+      wire([
+        row(1, [{ ticket_id: 101, seat_id: 1, seat_no: "C1", status: -1 }]),
+      ]),
+    );
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+
+    const mapped = mapT2mFeed({
+      feed: parsed.feed,
+      showbuyId: "show-1",
+      sectionByTicketType: { 101: "sec-a" },
+      classifications: { 1: "on_hold" },
+      regularPriceBySection: { "sec-a": 500_000 },
+    });
+    expect(mapped.ok).toBe(true);
+    if (!mapped.ok) return;
+    expect(mapped.seats.find((s) => s.label === "C1")?.status).toBe("on_hold");
+  });
+
   test("sold T2M seats can be reclassified as pull-outs or kept as sold_t2m", () => {
     const parsed = validateT2mWire(
       wire([

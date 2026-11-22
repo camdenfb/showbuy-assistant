@@ -2,12 +2,21 @@ export type ClaimCodeParts = {
   section: string;
   order: string;
   seat: string;
+  firstSeat?: string;
   qty: number;
   discount: string;
   random?: () => string;
 };
 
-const ALLOWED = new Set(["section", "order", "seat", "qty", "discount", "random"]);
+const ALLOWED = new Set([
+  "section",
+  "order",
+  "seat",
+  "first_seat",
+  "qty",
+  "discount",
+  "random",
+]);
 
 export function validateClaimCodeTemplate(
   template: string,
@@ -18,7 +27,7 @@ export function validateClaimCodeTemplate(
   if (!template.includes("{random}")) {
     return { ok: false, reason: "missing_random" };
   }
-  const tokens = template.match(/\{[a-zA-Z]+\}/g) ?? [];
+  const tokens = template.match(/\{[a-zA-Z_]+\}/g) ?? [];
   for (const token of tokens) {
     const name = token.slice(1, -1);
     if (!ALLOWED.has(name)) {
@@ -40,9 +49,11 @@ export function randomClaimSegment(length = 3): string {
 
 export function formatClaimCode(template: string, parts: ClaimCodeParts): string {
   const random = parts.random?.() ?? randomClaimSegment(3);
+  const firstSeat = parts.firstSeat ?? parts.seat;
   return template
     .replaceAll("{section}", parts.section)
     .replaceAll("{order}", parts.order)
+    .replaceAll("{first_seat}", firstSeat)
     .replaceAll("{seat}", parts.seat)
     .replaceAll("{qty}", String(parts.qty))
     .replaceAll("{discount}", parts.discount)
@@ -57,14 +68,24 @@ export function abbreviateSectionCode(sectionName: string): string {
   return compact.slice(0, 2) || "XX";
 }
 
+/** Showbuy-local sequence: 1 → "01", 12 → "12", 100 → "100". */
+export function formatClaimOrderNumber(orderNumber: number): string {
+  if (!Number.isInteger(orderNumber) || orderNumber < 1) {
+    return "01";
+  }
+  return String(orderNumber).padStart(2, "0");
+}
+
+/** @deprecated Prefer formatClaimOrderNumber for sequential showbuy order numbers. */
 export function formatClaimOrderId(orderId: string): string {
   const trimmed = orderId.trim();
   if (/^\d+$/.test(trimmed)) {
-    return trimmed.padStart(2, "0");
+    return formatClaimOrderNumber(Number(trimmed));
   }
   return trimmed;
 }
 
+/** PWD → PW, senior → SR, otherwise NO. */
 export function claimDiscountCode(input: {
   appliedDiscount: "none" | "promo" | "rebate" | string;
   discountCard: "none" | "pwd" | "senior" | string;

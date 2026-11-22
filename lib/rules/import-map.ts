@@ -27,18 +27,21 @@ export type T2mFeedRow = {
 export type UnavailableClass =
   | "house"
   | "direct_buy"
+  | "on_hold"
   | "sold_direct"
   | "sold_t2m";
 
 const UNAVAILABLE_CLASSES = new Set<UnavailableClass>([
   "house",
   "direct_buy",
+  "on_hold",
   "sold_direct",
 ]);
 
 const SOLD_CLASSES = new Set<UnavailableClass>([
   "house",
   "direct_buy",
+  "on_hold",
   "sold_direct",
   "sold_t2m",
 ]);

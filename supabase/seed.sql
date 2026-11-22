@@ -21,7 +21,7 @@ INSERT INTO public.showbuys (
   8.00,
   13000000,
   '[{"label":"Marketing","amountCentavos":500000}]'::jsonb,
-  '{section}{order}-{seat}-{qty}{discount}{random}',
+  '{section}{order}-{first_seat}-{qty}{discount}{random}',
   false,
   60,
   false
@@ -37,7 +37,7 @@ INSERT INTO public.showbuys (
   8.00,
   13000000,
   '[{"label":"Marketing","amountCentavos":500000}]'::jsonb,
-  '{section}{order}-{seat}-{qty}{discount}{random}',
+  '{section}{order}-{first_seat}-{qty}{discount}{random}',
   false,
   60,
   false

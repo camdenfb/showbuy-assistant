@@ -4,6 +4,7 @@ import {
   claimDiscountCode,
   formatClaimCode,
   formatClaimOrderId,
+  formatClaimOrderNumber,
   randomClaimSegment,
   validateClaimCodeTemplate,
 } from "./claim-code";
@@ -19,7 +20,9 @@ describe("claim code template", () => {
       reason: "missing_random",
     });
     expect(
-      validateClaimCodeTemplate("{section}{order}-{seat}-{qty}{discount}{random}"),
+      validateClaimCodeTemplate(
+        "{section}{order}-{first_seat}-{qty}{discount}{random}",
+      ),
     ).toEqual({ ok: true });
   });
 
@@ -30,16 +33,32 @@ describe("claim code template", () => {
     });
   });
 
-  test("expands placeholders with 3-digit random", () => {
-    const code = formatClaimCode("{section}{order}-{seat}-{qty}{discount}{random}", {
-      section: "HE",
-      order: "01",
-      seat: "Q23",
-      qty: 2,
-      discount: "NO",
-      random: () => "123",
-    });
+  test("expands placeholders including first_seat with 3-digit random", () => {
+    const code = formatClaimCode(
+      "{section}{order}-{first_seat}-{qty}{discount}{random}",
+      {
+        section: "HE",
+        order: "01",
+        seat: "Q23",
+        firstSeat: "Q23",
+        qty: 2,
+        discount: "NO",
+        random: () => "123",
+      },
+    );
     expect(code).toBe("HE01-Q23-2NO123");
+  });
+
+  test("{seat} and {first_seat} both use the first seat label", () => {
+    const code = formatClaimCode("{seat}/{first_seat}/{order}/{random}", {
+      section: "HE",
+      order: "02",
+      seat: "A1",
+      qty: 1,
+      discount: "PW",
+      random: () => "009",
+    });
+    expect(code).toBe("A1/A1/02/009");
   });
 
   test("generates 3-digit random when none supplied", () => {
@@ -62,13 +81,20 @@ describe("claim code parts", () => {
     expect(abbreviateSectionCode("  HEART  ")).toBe("HE");
   });
 
-  test("pads order id to at least 2 digits", () => {
+  test("formats sequential order numbers from 01", () => {
+    expect(formatClaimOrderNumber(1)).toBe("01");
+    expect(formatClaimOrderNumber(9)).toBe("09");
+    expect(formatClaimOrderNumber(12)).toBe("12");
+    expect(formatClaimOrderNumber(100)).toBe("100");
+  });
+
+  test("pads numeric order id strings to at least 2 digits", () => {
     expect(formatClaimOrderId("1")).toBe("01");
     expect(formatClaimOrderId("12")).toBe("12");
     expect(formatClaimOrderId("123")).toBe("123");
   });
 
-  test("maps discount to PW SR or NO", () => {
+  test("maps pwd/senior rebate to PW or SR", () => {
     expect(claimDiscountCode({ appliedDiscount: "rebate", discountCard: "pwd" })).toBe(
       "PW",
     );

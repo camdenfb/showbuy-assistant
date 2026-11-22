@@ -46,6 +46,7 @@ const NOT_FOR_SALE_BG = "#3f3f46";
 const CLASS_COLORS: Record<UnavailableClass, { bg: string; label: string }> = {
   house: { bg: "#e4e4e7", label: "House" },
   direct_buy: { bg: "#99f6e4", label: "Direct buy" },
+  on_hold: { bg: "#fb923c", label: "Hold" },
   sold_direct: { bg: "#c4b5fd", label: "Sold direct" },
   sold_t2m: { bg: "#fca5a5", label: "Sold (T2M)" },
 };
@@ -454,7 +455,8 @@ export function ImportForm({
           <h2 className="text-lg font-medium text-zinc-900">Map preview</h2>
           <p className="text-sm text-zinc-600">
             Dark grey = not for sale. For-sale seats use your classification when set (direct buy,
-            house, …), otherwise Ticket2Me status. Section color outlines the whole for-sale block.
+            house, hold, …), otherwise Ticket2Me status. Section color outlines the whole for-sale
+            block.
           </p>
           <div className="overflow-x-auto rounded border border-zinc-200 bg-white p-4 font-mono text-[10px] leading-none">
             {feedPreview.map((row, rowIndex) => (
@@ -474,19 +476,23 @@ export function ImportForm({
                   const forSale = forSaleByType[seat.ticket_id] === true;
                   const statusStyle = t2mStatusStyle(seat.status);
                   const sectionColor = ticketMetaById[seat.ticket_id]?.color ?? "#a1a1aa";
+                  const savedOrLive =
+                    classes[seat.seat_id] ?? savedClassifications[seat.seat_id];
                   const classification =
-                    isClassifiable(seat.status) && forSale
-                      ? (classes[seat.seat_id] ??
-                        defaultClassFor(
-                          {
-                            seatId: seat.seat_id,
-                            label: seat.seat_no,
-                            ticketTypeId: seat.ticket_id,
-                            t2mStatus: seat.status,
-                          },
-                          savedClassifications,
-                        ))
-                      : undefined;
+                    forSale && savedOrLive === "on_hold"
+                      ? "on_hold"
+                      : isClassifiable(seat.status) && forSale
+                        ? (classes[seat.seat_id] ??
+                          defaultClassFor(
+                            {
+                              seatId: seat.seat_id,
+                              label: seat.seat_no,
+                              ticketTypeId: seat.ticket_id,
+                              t2mStatus: seat.status,
+                            },
+                            savedClassifications,
+                          ))
+                        : undefined;
                   const classStyle = classification
                     ? CLASS_COLORS[classification]
                     : undefined;
@@ -674,6 +680,7 @@ export function ImportForm({
                         ) : null}
                         <option value="house">House</option>
                         <option value="direct_buy">Direct buy</option>
+                        <option value="on_hold">Hold</option>
                         <option value="sold_direct">Sold direct</option>
                       </select>
                     </label>

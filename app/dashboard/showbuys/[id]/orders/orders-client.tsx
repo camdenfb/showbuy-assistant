@@ -3,7 +3,16 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import type { OrderStatus } from "@/lib/rules/orders";
+import type { ReceiptWarning } from "@/lib/rules/receipt-check";
 import { processOrders, setOrderStatus } from "./actions";
+
+export type ReceiptCheckSummary = {
+  amountPesos: number | null;
+  referenceNumber: string | null;
+  recipientLast4: string | null;
+  warnings: ReceiptWarning[];
+  notes: string[];
+};
 
 export type OrderCard = {
   id: string;
@@ -17,6 +26,8 @@ export type OrderCard = {
   seatLabels: string[];
   holdLabel: string;
   receiptUrl: string | null;
+  receiptUploadPath: string;
+  receiptCheck: ReceiptCheckSummary | null;
   paymentEmailSent: boolean;
   claimEmailSent: boolean;
   claimCode: string | null;
@@ -108,15 +119,53 @@ export function OrdersClient({ showbuyId, orders }: Props) {
                   <tr key={order.id} className="border-b border-zinc-200 align-top">
                     <td className="px-2 py-3">
                       <p className="font-mono text-zinc-900">{order.id.slice(0, 8)}</p>
-                      {order.receiptUrl ? (
+                      <p className="mt-1">
                         <a
-                          href={order.receiptUrl}
+                          href={order.receiptUploadPath}
                           target="_blank"
                           rel="noreferrer"
                           className="text-xs underline"
                         >
-                          Receipt
+                          Upload link
                         </a>
+                        {order.receiptUrl ? (
+                          <>
+                            {" · "}
+                            <a
+                              href={order.receiptUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs underline"
+                            >
+                              View file
+                            </a>
+                          </>
+                        ) : null}
+                      </p>
+                      {order.receiptCheck ? (
+                        <div className="mt-1 space-y-0.5 text-xs text-zinc-600">
+                          {order.receiptCheck.amountPesos != null ? (
+                            <p>AI amount ₱{order.receiptCheck.amountPesos.toLocaleString("en-PH")}</p>
+                          ) : null}
+                          {order.receiptCheck.referenceNumber ? (
+                            <p>Ref {order.receiptCheck.referenceNumber}</p>
+                          ) : null}
+                          {order.receiptCheck.recipientLast4 ? (
+                            <p>Last4 {order.receiptCheck.recipientLast4}</p>
+                          ) : null}
+                          {order.receiptCheck.warnings.length > 0 ? (
+                            <p className="text-amber-800">
+                              Warnings: {order.receiptCheck.warnings.join(", ")}
+                            </p>
+                          ) : (
+                            <p className="text-emerald-800">AI check: no warnings</p>
+                          )}
+                          {order.receiptCheck.notes.map((note) => (
+                            <p key={note} className="text-sky-800">
+                              Note: {note}
+                            </p>
+                          ))}
+                        </div>
                       ) : null}
                     </td>
                     <td className="px-2 py-3">
@@ -147,6 +196,11 @@ export function OrdersClient({ showbuyId, orders }: Props) {
                       <p className="text-xs text-zinc-500">
                         Claim mail: {order.claimEmailSent ? "sent" : "pending"}
                       </p>
+                      {order.claimCode ? (
+                        <p className="mt-1 font-mono text-sm font-semibold text-emerald-700">
+                          {order.claimCode}
+                        </p>
+                      ) : null}
                     </td>
                     <td className="px-2 py-3">
                       {order.allowed.length === 0 ? (

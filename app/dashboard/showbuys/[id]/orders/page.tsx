@@ -3,10 +3,41 @@ import { Breadcrumbs } from "@/components/breadcrumbs";
 import { requireShowbuyer } from "@/lib/auth/require-showbuyer";
 import { canTransition, type OrderStatus } from "@/lib/rules/orders";
 import { mapDbOrder } from "@/lib/order/map-order";
+import type { ReceiptWarning } from "@/lib/rules/receipt-check";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
-import { OrdersClient, type OrderCard } from "./orders-client";
+import { OrdersClient, type OrderCard, type ReceiptCheckSummary } from "./orders-client";
 
 type Props = { params: Promise<{ id: string }> };
+
+function summarizeReceiptCheck(payload: unknown): ReceiptCheckSummary | null {
+  if (!payload || typeof payload !== "object") return null;
+  const row = payload as {
+    reading?: {
+      amountPesos?: unknown;
+      referenceNumber?: unknown;
+      recipientAccountLast4?: unknown;
+    } | null;
+    warnings?: unknown;
+  };
+  const warnings = Array.isArray(row.warnings)
+    ? row.warnings.filter((w): w is ReceiptWarning => typeof w === "string")
+    : [];
+  const notes = Array.isArray((row as { notes?: unknown }).notes)
+    ? ((row as { notes: unknown[] }).notes).filter((n): n is string => typeof n === "string")
+    : [];
+  const reading = row.reading;
+  return {
+    amountPesos: typeof reading?.amountPesos === "number" ? reading.amountPesos : null,
+    referenceNumber:
+      typeof reading?.referenceNumber === "string" ? reading.referenceNumber : null,
+    recipientLast4:
+      typeof reading?.recipientAccountLast4 === "string"
+        ? reading.recipientAccountLast4
+        : null,
+    warnings,
+    notes,
+  };
+}
 
 const ALL_STATUSES: OrderStatus[] = [
   "sent_payment_info",
@@ -33,7 +64,7 @@ export default async function OrdersPage({ params }: Props) {
   const { data: orderRows } = await supabase
     .from("orders")
     .select(
-      "id, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, promo_code, manual_reason, total_centavos, card_rebate_centavos, qty, name, email, mobile",
+      "id, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, promo_code, manual_reason, total_centavos, card_rebate_centavos, qty, name, email, mobile, receipt_token",
     )
     .eq("showbuy_id", id)
     .order("created_at", { ascending: false });
@@ -56,29 +87,43 @@ export default async function OrdersPage({ params }: Props) {
     orderIds.length > 0
       ? await supabase
           .from("receipts")
-          .select("order_id, file_path, uploaded_at")
+          .select("order_id, file_path, uploaded_at, check_payload")
           .in("order_id", orderIds)
           .order("uploaded_at", { ascending: false })
-      : { data: [] as { order_id: string; file_path: string; uploaded_at: string }[] };
+      : {
+          data: [] as {
+            order_id: string;
+            file_path: string;
+            uploaded_at: string;
+            check_payload: unknown;
+          }[],
+        };
 
-  const latestReceiptByOrder = new Map<string, string>();
+  const latestReceiptByOrder = new Map<
+    string,
+    { path: string; checkPayload: unknown }
+  >();
   for (const receipt of receipts ?? []) {
     if (!latestReceiptByOrder.has(receipt.order_id)) {
-      latestReceiptByOrder.set(receipt.order_id, receipt.file_path);
+      latestReceiptByOrder.set(receipt.order_id, {
+        path: receipt.file_path,
+        checkPayload: receipt.check_payload,
+      });
     }
   }
 
   const cards: OrderCard[] = [];
   for (const row of orderRows ?? []) {
     const order = mapDbOrder(row, Date.now());
-    const path = latestReceiptByOrder.get(row.id);
+    const receiptMeta = latestReceiptByOrder.get(row.id);
     let receiptUrl: string | null = null;
-    if (path) {
+    if (receiptMeta) {
       const { data: signed } = await supabase.storage
         .from("receipts")
-        .createSignedUrl(path, 60 * 30);
+        .createSignedUrl(receiptMeta.path, 60 * 30);
       receiptUrl = signed?.signedUrl ?? null;
     }
+    const receiptCheck = summarizeReceiptCheck(receiptMeta?.checkPayload);
 
     const hours = Math.floor(order.holdRemainingMs / (60 * 60 * 1000));
     const mins = Math.floor((order.holdRemainingMs % (60 * 60 * 1000)) / (60 * 1000));
@@ -110,6 +155,8 @@ export default async function OrdersPage({ params }: Props) {
       ),
       holdLabel,
       receiptUrl,
+      receiptUploadPath: `/receipt/${row.receipt_token}`,
+      receiptCheck,
       paymentEmailSent: order.paymentEmailSentAt !== null,
       claimEmailSent: order.claimEmailSentAt !== null,
       claimCode: order.claimCode,

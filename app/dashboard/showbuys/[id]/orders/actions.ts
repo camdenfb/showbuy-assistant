@@ -7,7 +7,7 @@ import {
   abbreviateSectionCode,
   claimDiscountCode,
   formatClaimCode,
-  formatClaimOrderId,
+  formatClaimOrderNumber,
   validateClaimCodeTemplate,
 } from "@/lib/rules/claim-code";
 import {
@@ -28,7 +28,7 @@ export type ActionState =
   | { ok: false; reason: string };
 
 const ORDER_SELECT =
-  "id, showbuy_id, name, email, mobile, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, manual_reason, total_centavos, card_rebate_centavos, qty, preferred_section_id, payment_account_id, receipt_token, tickets";
+  "id, showbuy_id, name, email, mobile, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, manual_reason, total_centavos, card_rebate_centavos, qty, preferred_section_id, payment_account_id, receipt_token, tickets, order_number";
 
 async function loadOrderBundle(showbuyId: string, orderId: string) {
   const supabase = createSupabaseServiceClient();
@@ -265,10 +265,16 @@ export async function processOrders(showbuyId: string): Promise<ActionState> {
 
     const seatLabels = seats.map((seat) => seat.label);
     const firstSeat = seatLabels[0] ?? "seat";
+    const claimOrder = formatClaimOrderNumber(
+      typeof row.order_number === "number" && row.order_number >= 1
+        ? row.order_number
+        : 1,
+    );
     const claimParts = {
       section: abbreviateSectionCode(sectionName),
-      order: formatClaimOrderId(orderNumber),
+      order: claimOrder,
       seat: firstSeat,
+      firstSeat,
       qty: row.qty,
       discount: claimDiscountCode({
         appliedDiscount: row.applied_discount,
