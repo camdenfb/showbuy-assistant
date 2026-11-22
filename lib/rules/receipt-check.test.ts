@@ -82,6 +82,42 @@ describe("buildReceiptCheck", () => {
     expect(check.warnings).toContain("recipient_mismatch");
   });
 
+  test("QR nickname like Bakli (QR Code) is not a recipient_mismatch", () => {
+    const check = buildReceiptCheck({
+      ...baseInput,
+      paymentAccount: {
+        accountName: "Camilla Demo",
+        accountNumber: "1234567890133",
+        platform: "BPI",
+      },
+      reading: {
+        ...matchReading,
+        method: "bank",
+        recipientName: "Bakli (QR Code)",
+        recipientAccountLast4: "133",
+      },
+    });
+    expect(check.warnings).not.toContain("recipient_mismatch");
+  });
+
+  test("incomplete last4 from masked bank receipts is ignored", () => {
+    const check = buildReceiptCheck({
+      ...baseInput,
+      paymentAccount: {
+        accountName: "Camilla Demo",
+        accountNumber: "9999",
+        platform: "BPI",
+      },
+      reading: {
+        ...matchReading,
+        method: "bank",
+        recipientName: null,
+        recipientAccountLast4: "133",
+      },
+    });
+    expect(check.warnings).not.toContain("recipient_mismatch");
+  });
+
   test("date_mismatch for future paidAt or outside hold window", () => {
     expect(
       buildReceiptCheck({

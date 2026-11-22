@@ -51,9 +51,28 @@ export default async function CustomerOrderPage({ params }: Props) {
       .eq("showbuy_id", showbuyId),
     supabase
       .from("payment_accounts")
-      .select("id, platform, account_name")
+      .select("id, platform, account_name, account_number, qr_code_path")
       .eq("showbuy_id", showbuyId),
   ]);
+
+  const paymentsWithQr = await Promise.all(
+    (payments ?? []).map(async (payment) => {
+      let qrUrl: string | null = null;
+      if (payment.qr_code_path) {
+        const { data: signed } = await supabase.storage
+          .from("payment-qrs")
+          .createSignedUrl(payment.qr_code_path, 60 * 30);
+        qrUrl = signed?.signedUrl ?? null;
+      }
+      return {
+        id: payment.id,
+        platform: payment.platform,
+        account_name: payment.account_name,
+        account_number: payment.account_number,
+        qrUrl,
+      };
+    }),
+  );
 
   let ticketColorById: Record<number, string> = {};
   try {
@@ -97,9 +116,9 @@ export default async function CustomerOrderPage({ params }: Props) {
           position: seat.position,
           conflict: seat.conflict,
         }))}
-        payments={payments ?? []}
+        payments={paymentsWithQr}
       />
-      {(payments ?? []).length === 0 ? (
+      {paymentsWithQr.length === 0 ? (
         <p className="mt-4 text-sm text-amber-800">
           This showbuy has no payment account yet — the showbuyer must add one before orders
           can be held.

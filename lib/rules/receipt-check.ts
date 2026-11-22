@@ -119,8 +119,22 @@ function normalizeName(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+/** True for QR payee labels like "Bakli (QR Code)" — not a legal account name. */
+export function looksLikeQrRecipientLabel(name: string): boolean {
+  const n = normalizeName(name);
+  return /\(qr\s*code\)/.test(n) || /\bqr\s*code\b/.test(n);
+}
+
 function accountLast4(accountNumber: string): string {
   const digits = accountNumber.replace(/\D/g, "");
+  return digits.slice(-4);
+}
+
+/** Only compare when we have a full 4-digit suffix (masked bank receipts often show 3). */
+function comparableLast4(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const digits = value.replace(/\D/g, "");
+  if (digits.length < 4) return null;
   return digits.slice(-4);
 }
 
@@ -148,12 +162,16 @@ export function buildReceiptCheck(input: {
     warnings.push("amount_mismatch");
   }
 
-  const expectedLast4 = accountLast4(input.paymentAccount.accountNumber);
-  if (reading.recipientAccountLast4) {
-    if (reading.recipientAccountLast4 !== expectedLast4) {
+  const expectedLast4 = comparableLast4(input.paymentAccount.accountNumber);
+  const gotLast4 = comparableLast4(reading.recipientAccountLast4);
+  if (gotLast4 && expectedLast4) {
+    if (gotLast4 !== expectedLast4) {
       warnings.push("recipient_mismatch");
     }
-  } else if (reading.recipientName) {
+  } else if (
+    reading.recipientName &&
+    !looksLikeQrRecipientLabel(reading.recipientName)
+  ) {
     const expected = normalizeName(input.paymentAccount.accountName);
     const got = normalizeName(reading.recipientName);
     if (!expected.includes(got) && !got.includes(expected)) {

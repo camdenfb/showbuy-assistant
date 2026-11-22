@@ -13,6 +13,7 @@ type DbOrder = {
   suggested_choice_seat_ids: string[] | null;
   applied_discount: string;
   manual_reason: string | null;
+  payment_timing?: string | null;
 };
 
 export function mapDbOrder(row: DbOrder, nowMs: number): Order {
@@ -22,6 +23,9 @@ export function mapDbOrder(row: DbOrder, nowMs: number): Order {
     : PAYMENT_HOLD_MS;
   const status = row.status as OrderStatus;
   const holdPaused = status === "payment_submitted";
+  const timing = row.payment_timing;
+  const paymentTiming =
+    timing === "now" || timing === "later" ? timing : null;
 
   return {
     id: row.id,
@@ -36,5 +40,6 @@ export function mapDbOrder(row: DbOrder, nowMs: number): Order {
     suggestedChoice: row.suggested_choice_seat_ids,
     appliedDiscount: row.applied_discount as Order["appliedDiscount"],
     manualReason: row.manual_reason,
+    paymentTiming,
   };
 }

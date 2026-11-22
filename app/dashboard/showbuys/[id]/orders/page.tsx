@@ -64,7 +64,7 @@ export default async function OrdersPage({ params }: Props) {
   const { data: orderRows } = await supabase
     .from("orders")
     .select(
-      "id, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, promo_code, manual_reason, total_centavos, card_rebate_centavos, qty, name, email, mobile, receipt_token",
+      "id, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, promo_code, manual_reason, total_centavos, card_rebate_centavos, qty, name, email, mobile, receipt_token, payment_timing",
     )
     .eq("showbuy_id", id)
     .order("created_at", { ascending: false });

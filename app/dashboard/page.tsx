@@ -44,14 +44,14 @@ export default async function DashboardPage() {
               })}
             </p>
             <span className="mt-3 flex flex-wrap gap-3 text-sm font-medium">
-              <Link
-                className="underline"
-                href={`/dashboard/showbuys/${showbuy.id}/settings`}
-              >
-                Edit settings
-              </Link>
               <Link className="underline" href={`/dashboard/showbuys/${showbuy.id}/orders`}>
                 Orders
+              </Link>
+              <Link className="underline" href={`/dashboard/showbuys/${showbuy.id}/import`}>
+                Inventory
+              </Link>
+              <Link className="underline" href={`/order/${showbuy.id}`}>
+                Order page
               </Link>
               <Link className="underline" href={`/dashboard/showbuys/${showbuy.id}/payments`}>
                 Payments
@@ -65,11 +65,11 @@ export default async function DashboardPage() {
               >
                 Analytics
               </Link>
-              <Link className="underline" href={`/dashboard/showbuys/${showbuy.id}/import`}>
-                Inventory
-              </Link>
-              <Link className="underline" href={`/order/${showbuy.id}`}>
-                Order page
+              <Link
+                className="underline"
+                href={`/dashboard/showbuys/${showbuy.id}/settings`}
+              >
+                Edit settings
               </Link>
             </span>
           </li>

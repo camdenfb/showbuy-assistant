@@ -32,7 +32,11 @@ type PaymentView = {
   id: string;
   platform: string;
   account_name: string;
+  account_number: string;
+  qrUrl: string | null;
 };
+
+type PaymentTimingChoice = "now" | "later";
 
 type Props = {
   showbuyId: string;
@@ -52,6 +56,95 @@ const COLOR_UNAVAILABLE = "#71717a";
 
 function pesos(centavos: number): string {
   return (centavos / 100).toLocaleString("en-PH");
+}
+
+/** Display label for stored platform values (often lowercase like "gcash"). */
+function formatPaymentPlatform(platform: string): string {
+  const key = platform.trim().toLowerCase();
+  if (key === "gcash" || key === "g-cash") return "GCash";
+  if (key === "maya" || key === "paymaya") return "Maya";
+  if (key === "bank") return "Bank";
+  if (key === "bpi") return "BPI";
+  if (key === "bdo") return "BDO";
+  if (key === "other") return "Other";
+  if (!platform.trim()) return platform;
+  // Title-case free-text platforms that were saved lowercase.
+  return platform
+    .trim()
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+function seatPickHint(qty: number, firstCount: number, secondCount: number): string | null {
+  if (firstCount === 0) {
+    return qty === 1
+      ? "Pick your first-choice seat on the map."
+      : `Pick ${qty} seats for your first choice on the map.`;
+  }
+  if (firstCount !== qty) {
+    return `First choice needs ${qty} seat${qty === 1 ? "" : "s"} — you’ve picked ${firstCount}.`;
+  }
+  if (secondCount === 0) {
+    return qty === 1
+      ? "Pick a second-choice (backup) seat on the map."
+      : `Pick ${qty} backup seats for your second choice on the map.`;
+  }
+  if (secondCount !== qty) {
+    return `Second choice needs ${qty} seat${qty === 1 ? "" : "s"} — you’ve picked ${secondCount}.`;
+  }
+  return null;
+}
+
+function orderErrorMessage(reason: string, qty: number): string {
+  switch (reason) {
+    case "missing_first_choice":
+    case "choice_length":
+      return qty === 1
+        ? "Pick your first-choice seat and a backup seat before holding."
+        : `Pick ${qty} first-choice seats and ${qty} backup seats before holding.`;
+    case "incomplete_first_choice":
+      return `First choice must be exactly ${qty} seat${qty === 1 ? "" : "s"}.`;
+    case "missing_second_choice":
+      return qty === 1
+        ? "Pick a second-choice (backup) seat before holding."
+        : `Pick ${qty} second-choice (backup) seats before holding.`;
+    case "incomplete_second_choice":
+      return `Second choice must be exactly ${qty} seat${qty === 1 ? "" : "s"}.`;
+    case "missing_contact":
+      return "Enter your name, email, and mobile number.";
+    case "orders_paused":
+      return "Orders are paused for this show right now. Try again later.";
+    case "no_payment_account":
+      return "Payment details aren’t set up for this show yet.";
+    case "invalid_section":
+      return "Choose a section that’s for sale.";
+    case "invalid_seats":
+      return "One or more selected seats are no longer valid. Pick again.";
+    case "use_ticket2me_link":
+      return "Those seats are sold on Ticket2Me — use the Ticket2Me link instead.";
+    case "no_suggestions":
+      return "Both choices were unavailable, and we couldn’t find alternatives. Try different seats or contact the showbuyer.";
+    case "hold_failed":
+      return "We couldn’t hold those seats. Try again or pick different seats.";
+    case "missing_idempotency_key":
+      return "Something went wrong with the form. Refresh the page and try again.";
+    case "invalid_qty":
+      return "Choose a valid quantity.";
+    case "missing_payment_timing":
+      return "Choose Pay later or Pay now before submitting.";
+    case "missing_receipt":
+    case "file_required":
+      return "Upload your payment receipt before submitting Pay now.";
+    case "file_too_large":
+      return "Receipt must be 4 MB or smaller.";
+    case "bad_file_type":
+      return "Receipt must be a PNG, JPEG, or WebP image.";
+    default:
+      return reason.includes("_")
+        ? "We couldn’t complete that order. Try again or contact the showbuyer."
+        : reason;
+  }
 }
 
 function isDirectBuy(seat: SeatView): boolean {
@@ -152,9 +245,18 @@ export function OrderForm({
   const [mobile, setMobile] = useState("");
   const [note, setNote] = useState("");
   const [paymentAccountId, setPaymentAccountId] = useState(payments[0]?.id ?? "");
+  const [paymentTiming, setPaymentTiming] = useState<PaymentTimingChoice | null>(null);
+  const [receiptFileName, setReceiptFileName] = useState<string | null>(null);
+  const [zoomedQr, setZoomedQr] = useState<{ url: string; label: string } | null>(null);
   const [quote, setQuote] = useState<QuoteState | null>(null);
   const [idempotencyKey] = useState(() => crypto.randomUUID());
   const [hideSuggestions, setHideSuggestions] = useState(false);
+
+  const paymentsOrdered = useMemo(() => {
+    const chosen = payments.find((payment) => payment.id === paymentAccountId);
+    const rest = payments.filter((payment) => payment.id !== paymentAccountId);
+    return chosen ? [chosen, ...rest] : payments;
+  }, [payments, paymentAccountId]);
 
   const submitBound = submitOrder.bind(null, showbuyId);
   const confirmBound = confirmSuggestion.bind(null, showbuyId);
@@ -305,6 +407,21 @@ export function OrderForm({
       : null;
 
   if (success) {
+    if (success.paymentTiming === "now") {
+      return (
+        <div className="space-y-3 rounded border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
+          <p className="font-medium">
+            {success.paymentSubmitted
+              ? "Seats held and receipt uploaded."
+              : "Seats held."}
+          </p>
+          <p className="text-zinc-700">
+            The showbuyer will confirm your payment. Order{" "}
+            <span className="font-mono">{success.orderId.slice(0, 8)}</span>.
+          </p>
+        </div>
+      );
+    }
     return (
       <div className="space-y-3 rounded border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-950">
         <p className="font-medium">Seats held. Payment details were emailed.</p>
@@ -329,6 +446,11 @@ export function OrderForm({
             Part of your note can’t be checked on this map — contact the showbuyer.
           </p>
         ) : null}
+        {!paymentTiming ? (
+          <p className="text-sm text-amber-800" role="alert">
+            Go back and choose Pay later or Pay now before confirming a suggestion.
+          </p>
+        ) : null}
         {suggestions.map((option) => (
           <form key={option.id} action={confirmAction} className="rounded border border-zinc-200 p-3">
             <input type="hidden" name="name" value={name} />
@@ -341,6 +463,9 @@ export function OrderForm({
             <input type="hidden" name="discountCard" value={discountCard} />
             <input type="hidden" name="promoCode" value={promoCode} />
             <input type="hidden" name="paymentAccountId" value={paymentAccountId} />
+            {paymentTiming ? (
+              <input type="hidden" name="paymentTiming" value={paymentTiming} />
+            ) : null}
             {firstChoice.map((id) => (
               <input key={`f-${id}`} type="hidden" name="firstChoice" value={id} />
             ))}
@@ -358,9 +483,21 @@ export function OrderForm({
                 ? ` · rebate ₱${pesos(option.cardRebateCentavos)}`
                 : ""}
             </p>
+            {paymentTiming === "now" ? (
+              <label className="mt-3 block text-sm text-zinc-800">
+                Receipt (PNG, JPEG, or WebP, max 4 MB)
+                <input
+                  name="receipt"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  required
+                  className="mt-1 block w-full text-sm"
+                />
+              </label>
+            ) : null}
             <button
               type="submit"
-              disabled={confirmPending || !name || !email || !mobile}
+              disabled={confirmPending || !name || !email || !mobile || !paymentTiming}
               className="btn-primary mt-3 rounded bg-black px-3 py-1.5 text-sm text-white disabled:opacity-60"
             >
               {confirmPending ? "Holding…" : "Confirm these seats"}
@@ -369,7 +506,7 @@ export function OrderForm({
         ))}
         <button
           type="button"
-          className="text-sm underline"
+          className="text-sm text-zinc-600 underline hover:text-zinc-800"
           onClick={() => setHideSuggestions(true)}
         >
           Back to map
@@ -380,6 +517,11 @@ export function OrderForm({
 
   const firstCount = firstChoice.length;
   const secondCount = secondChoice.length;
+  const pickHint = seatPickHint(qty, firstCount, secondCount);
+  const submitError =
+    submitState && !submitState.ok && submitState.reason !== "suggestions"
+      ? orderErrorMessage(submitState.reason, qty)
+      : null;
 
   return (
     <form action={submitAction} className="space-y-6">
@@ -663,7 +805,7 @@ export function OrderForm({
         >
           {payments.map((payment) => (
             <option key={payment.id} value={payment.id}>
-              {payment.platform}
+              {formatPaymentPlatform(payment.platform)}
             </option>
           ))}
         </select>
@@ -686,7 +828,7 @@ export function OrderForm({
       <div className="rounded border border-zinc-200 bg-zinc-50 p-3 text-sm">
         <button
           type="button"
-          className="mb-2 underline"
+          className="mb-2 text-zinc-600 underline hover:text-zinc-800"
           onClick={() => void refreshQuote(firstChoice)}
         >
           Preview price for first choice
@@ -706,23 +848,191 @@ export function OrderForm({
         )}
       </div>
 
-      {submitState && !submitState.ok && submitState.reason !== "suggestions" ? (
-        <p className="text-sm text-red-700">{submitState.reason}</p>
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium text-zinc-900">How do you want to pay?</legend>
+        <p className="text-sm text-zinc-600">Choose one to continue.</p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => setPaymentTiming("later")}
+            className={
+              paymentTiming === "later"
+                ? "rounded border border-zinc-400 bg-zinc-100 px-3 py-2 text-left text-sm font-medium text-zinc-800"
+                : "rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-left text-sm text-zinc-700"
+            }
+          >
+            Pay later
+            <span className="mt-0.5 block font-normal text-zinc-500">
+              Hold seats and email payment details to me.
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPaymentTiming("now")}
+            className={
+              paymentTiming === "now"
+                ? "rounded border border-zinc-400 bg-zinc-100 px-3 py-2 text-left text-sm font-medium text-zinc-800"
+                : "rounded border border-zinc-200 bg-zinc-50 px-3 py-2 text-left text-sm text-zinc-700"
+            }
+          >
+            Pay now
+            <span className="mt-0.5 block font-normal text-zinc-500">
+              Pay on this page, upload your receipt, then submit.
+            </span>
+          </button>
+        </div>
+        {paymentTiming ? (
+          <input type="hidden" name="paymentTiming" value={paymentTiming} />
+        ) : null}
+      </fieldset>
+
+      {paymentTiming === "now" ? (
+        <div className="space-y-4 rounded border border-zinc-200 bg-zinc-50 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-medium text-zinc-900">Pay now</h2>
+              <p className="mt-1 text-sm text-zinc-600">
+                Upload your receipt, then pay with a QR or account details below. Total due uses
+                your first-choice preview above.
+              </p>
+            </div>
+            <button
+              type="button"
+              className="shrink-0 text-sm text-zinc-600 underline hover:text-zinc-800"
+              onClick={() => {
+                setPaymentTiming(null);
+                setReceiptFileName(null);
+                setZoomedQr(null);
+              }}
+            >
+              Go back
+            </button>
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm text-zinc-800">Receipt (PNG, JPEG, or WebP, max 4 MB)</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="inline-flex cursor-pointer items-center rounded border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-800 hover:bg-zinc-50">
+                Choose file
+                <input
+                  name="receipt"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  required
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    setReceiptFileName(file?.name ?? null);
+                  }}
+                />
+              </label>
+              <span className="text-sm text-zinc-600">
+                {receiptFileName ?? "No file chosen"}
+              </span>
+            </div>
+          </div>
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {paymentsOrdered.map((payment, index) => (
+              <li key={payment.id} className="rounded border border-zinc-200 bg-white p-3">
+                <p className="text-sm font-medium text-zinc-900">
+                  {formatPaymentPlatform(payment.platform)}
+                  {index === 0 ? " · selected" : ""}
+                </p>
+                <dl className="mt-2 space-y-1 text-sm text-zinc-700">
+                  <div>
+                    <dt className="text-zinc-500">Account Name</dt>
+                    <dd>{payment.account_name}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-zinc-500">Account Number</dt>
+                    <dd>{payment.account_number}</dd>
+                  </div>
+                </dl>
+                {payment.qrUrl ? (
+                  <button
+                    type="button"
+                    className="mt-2 block rounded border border-zinc-200 bg-white p-0 text-left"
+                    onClick={() =>
+                      setZoomedQr({
+                        url: payment.qrUrl!,
+                        label: formatPaymentPlatform(payment.platform),
+                      })
+                    }
+                    aria-label={`Zoom ${formatPaymentPlatform(payment.platform)} QR`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={payment.qrUrl}
+                      alt={`${formatPaymentPlatform(payment.platform)} QR`}
+                      className="h-36 w-full max-w-[10rem] object-contain"
+                    />
+                  </button>
+                ) : (
+                  <p className="mt-2 text-sm text-zinc-500">No QR on file for this account.</p>
+                )}
+              </li>
+            ))}
+          </ul>
+          {zoomedQr ? (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`${zoomedQr.label} QR enlarged`}
+              onClick={() => setZoomedQr(null)}
+            >
+              <div
+                className="relative max-h-[90vh] max-w-[90vw] rounded bg-white p-4 shadow-lg"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  className="absolute right-2 top-2 text-sm text-zinc-600 underline hover:text-zinc-800"
+                  onClick={() => setZoomedQr(null)}
+                >
+                  Close
+                </button>
+                <p className="mb-3 pr-14 text-sm font-medium text-zinc-900">{zoomedQr.label}</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={zoomedQr.url}
+                  alt={`${zoomedQr.label} QR`}
+                  className="mx-auto max-h-[75vh] max-w-full object-contain"
+                />
+              </div>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={
-          submitPending ||
-          ordersPaused ||
-          firstChoice.length !== qty ||
-          secondChoice.length !== qty ||
-          payments.length === 0
-        }
-        className="btn-primary w-full rounded bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
-      >
-        {submitPending ? "Submitting…" : "Hold seats & get payment details"}
-      </button>
+      {submitError ? (
+        <p className="text-sm text-red-700" role="alert">
+          {submitError}
+        </p>
+      ) : pickHint ? (
+        <p className="text-sm text-amber-800">{pickHint}</p>
+      ) : !paymentTiming ? (
+        <p className="text-sm text-amber-800">Choose Pay later or Pay now to continue.</p>
+      ) : null}
+
+      {paymentTiming === "later" || paymentTiming === "now" ? (
+        <button
+          type="submit"
+          disabled={
+            submitPending ||
+            ordersPaused ||
+            firstCount !== qty ||
+            secondCount !== qty ||
+            payments.length === 0
+          }
+          className="btn-primary w-full rounded bg-black px-4 py-3 text-sm font-medium text-white disabled:opacity-60"
+        >
+          {submitPending
+            ? "Submitting…"
+            : paymentTiming === "now"
+              ? "Hold seats & submit receipt"
+              : "Hold seats & email payment details"}
+        </button>
+      ) : null}
     </form>
   );
 }

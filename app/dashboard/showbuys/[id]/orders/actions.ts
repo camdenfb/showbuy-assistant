@@ -28,7 +28,7 @@ export type ActionState =
   | { ok: false; reason: string };
 
 const ORDER_SELECT =
-  "id, showbuy_id, name, email, mobile, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, manual_reason, total_centavos, card_rebate_centavos, qty, preferred_section_id, payment_account_id, receipt_token, tickets, order_number";
+  "id, showbuy_id, name, email, mobile, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, manual_reason, total_centavos, card_rebate_centavos, qty, preferred_section_id, payment_account_id, receipt_token, tickets, order_number, payment_timing";
 
 async function loadOrderBundle(showbuyId: string, orderId: string) {
   const supabase = createSupabaseServiceClient();

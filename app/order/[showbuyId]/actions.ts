@@ -5,6 +5,7 @@ import {
   createSeatAssignerClient,
   suggestWithFallback,
 } from "@/lib/adapters/ai/seat-assigner";
+import { applyReceiptUploadForOrder } from "@/lib/order/apply-receipt-upload";
 import { mapDbSeat } from "@/lib/order/map-seat";
 import { buildSeatCandidates, reasonLineForPick } from "@/lib/rules/seat-assigner";
 import {
@@ -12,6 +13,7 @@ import {
   type DiscountCard,
   type Promo,
 } from "@/lib/rules/price";
+import type { PaymentTiming } from "@/lib/rules/orders";
 import { canHold, type SaleScope } from "@/lib/rules/seats";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 
@@ -36,13 +38,24 @@ export type SuggestionOption = {
 };
 
 export type SubmitState =
-  | { ok: true; orderId: string; receiptToken: string }
+  | {
+      ok: true;
+      orderId: string;
+      receiptToken: string;
+      paymentTiming: PaymentTiming;
+      paymentSubmitted: boolean;
+    }
   | {
       ok: false;
       reason: string;
       suggestions?: SuggestionOption[];
       hasUncheckableRequest?: boolean;
     };
+
+function parsePaymentTiming(value: FormDataEntryValue | null): PaymentTiming | null {
+  if (value === "now" || value === "later") return value;
+  return null;
+}
 
 function pesos(centavos: number): string {
   return (centavos / 100).toLocaleString("en-PH", {
@@ -308,6 +321,104 @@ async function buildSuggestions(input: {
   };
 }
 
+async function finalizeHeldOrder(input: {
+  ctx: NonNullable<Awaited<ReturnType<typeof loadOrderContext>>>;
+  showbuyId: string;
+  order: {
+    id: string;
+    receipt_token: string;
+    hold_expires_at: string;
+    total_centavos: number;
+    card_rebate_centavos: number;
+    qty: number;
+  };
+  sectionName: string;
+  email: string;
+  paymentAccountId: string;
+  paymentTiming: PaymentTiming;
+  receiptFile: FormDataEntryValue | null;
+}): Promise<SubmitState> {
+  const {
+    ctx,
+    showbuyId,
+    order,
+    sectionName,
+    email,
+    paymentAccountId,
+    paymentTiming,
+    receiptFile,
+  } = input;
+
+  await ctx.supabase
+    .from("orders")
+    .update({ payment_timing: paymentTiming })
+    .eq("id", order.id);
+
+  if (paymentTiming === "now") {
+    if (!(receiptFile instanceof File) || receiptFile.size === 0) {
+      return { ok: false, reason: "missing_receipt" };
+    }
+    const uploaded = await applyReceiptUploadForOrder({
+      supabase: ctx.supabase,
+      orderId: order.id,
+      file: receiptFile,
+    });
+    if (!uploaded.ok) {
+      return { ok: false, reason: uploaded.reason };
+    }
+    return {
+      ok: true,
+      orderId: order.id,
+      receiptToken: order.receipt_token,
+      paymentTiming,
+      paymentSubmitted: true,
+    };
+  }
+
+  const payment =
+    ctx.payments.find((item) => item.id === paymentAccountId) ?? ctx.payments[0]!;
+  const emailClient = createEmailClient();
+  const sent = await emailClient.sendPaymentInfo({
+    to: email,
+    orderId: order.id,
+    showbuyId,
+    orderNumber: order.id.slice(0, 8),
+    quantity: order.qty,
+    sectionName,
+    totalPesos: pesos(order.total_centavos),
+    paymentLines: [
+      `${payment.platform} · ${payment.account_name} · ${payment.account_number}`,
+    ],
+    deadlineManila: manilaDeadline(order.hold_expires_at),
+    receiptPath: `/receipt/${order.receipt_token}`,
+    rebatePesos:
+      order.card_rebate_centavos > 0 ? pesos(order.card_rebate_centavos) : null,
+  });
+
+  if (!sent.ok) {
+    await ctx.supabase
+      .from("orders")
+      .update({
+        status: "process_manually",
+        manual_reason: "payment_email_failed",
+      })
+      .eq("id", order.id);
+  } else {
+    await ctx.supabase
+      .from("orders")
+      .update({ payment_email_sent_at: new Date().toISOString() })
+      .eq("id", order.id);
+  }
+
+  return {
+    ok: true,
+    orderId: order.id,
+    receiptToken: order.receipt_token,
+    paymentTiming,
+    paymentSubmitted: false,
+  };
+}
+
 export async function submitOrder(
   showbuyId: string,
   _prev: SubmitState | null,
@@ -336,12 +447,27 @@ export async function submitOrder(
   const enteredCode = String(formData.get("promoCode") ?? "").trim() || null;
   const discountCard = parseDiscountCard(formData.get("discountCard"));
   const note = String(formData.get("note") ?? "").slice(0, 200);
+  const paymentTiming = parsePaymentTiming(formData.get("paymentTiming"));
+  const receiptFile = formData.get("receipt");
 
   if (!name || !email || !mobile) return { ok: false, reason: "missing_contact" };
+  if (!paymentTiming) return { ok: false, reason: "missing_payment_timing" };
+  if (paymentTiming === "now" && (!(receiptFile instanceof File) || receiptFile.size === 0)) {
+    return { ok: false, reason: "missing_receipt" };
+  }
   if (!idempotencyKey) return { ok: false, reason: "missing_idempotency_key" };
   if (!Number.isInteger(qty) || qty < 1) return { ok: false, reason: "invalid_qty" };
-  if (firstChoice.length !== qty || secondChoice.length !== qty) {
-    return { ok: false, reason: "choice_length" };
+  if (firstChoice.length === 0) {
+    return { ok: false, reason: "missing_first_choice" };
+  }
+  if (firstChoice.length !== qty) {
+    return { ok: false, reason: "incomplete_first_choice" };
+  }
+  if (secondChoice.length === 0) {
+    return { ok: false, reason: "missing_second_choice" };
+  }
+  if (secondChoice.length !== qty) {
+    return { ok: false, reason: "incomplete_second_choice" };
   }
 
   const section = ctx.sections.find((item) => item.id === preferredSectionId);
@@ -450,41 +576,16 @@ export async function submitOrder(
 
   if (!order) return { ok: false, reason: "order_missing_after_hold" };
 
-  const payment = ctx.payments.find((item) => item.id === paymentAccountId) ?? ctx.payments[0]!;
-  const emailClient = createEmailClient();
-  const sent = await emailClient.sendPaymentInfo({
-    to: email,
-    orderId: order.id,
+  return finalizeHeldOrder({
+    ctx,
     showbuyId,
-    orderNumber: order.id.slice(0, 8),
-    quantity: order.qty,
+    order,
     sectionName: section.name,
-    totalPesos: pesos(order.total_centavos),
-    paymentLines: [
-      `${payment.platform} · ${payment.account_name} · ${payment.account_number}`,
-    ],
-    deadlineManila: manilaDeadline(order.hold_expires_at),
-    receiptPath: `/receipt/${order.receipt_token}`,
-    rebatePesos:
-      order.card_rebate_centavos > 0 ? pesos(order.card_rebate_centavos) : null,
+    email,
+    paymentAccountId,
+    paymentTiming,
+    receiptFile: paymentTiming === "now" ? receiptFile : null,
   });
-
-  if (!sent.ok) {
-    await ctx.supabase
-      .from("orders")
-      .update({
-        status: "process_manually",
-        manual_reason: "payment_email_failed",
-      })
-      .eq("id", order.id);
-  } else {
-    await ctx.supabase
-      .from("orders")
-      .update({ payment_email_sent_at: new Date().toISOString() })
-      .eq("id", order.id);
-  }
-
-  return { ok: true, orderId: order.id, receiptToken: order.receipt_token };
 }
 
 export async function confirmSuggestion(
@@ -509,7 +610,13 @@ export async function confirmSuggestion(
   const discountCard = parseDiscountCard(formData.get("discountCard"));
   const firstChoice = formData.getAll("firstChoice").map(String);
   const secondChoice = formData.getAll("secondChoice").map(String);
+  const paymentTiming = parsePaymentTiming(formData.get("paymentTiming"));
+  const receiptFile = formData.get("receipt");
 
+  if (!paymentTiming) return { ok: false, reason: "missing_payment_timing" };
+  if (paymentTiming === "now" && (!(receiptFile instanceof File) || receiptFile.size === 0)) {
+    return { ok: false, reason: "missing_receipt" };
+  }
   if (suggestedIds.length !== qty || qty < 1) {
     return { ok: false, reason: "invalid_suggestion" };
   }
@@ -602,23 +709,14 @@ export async function confirmSuggestion(
   if (!order) return { ok: false, reason: "order_missing_after_hold" };
 
   const section = ctx.sections.find((item) => item.id === preferredSectionId);
-  const payment = ctx.payments.find((item) => item.id === paymentAccountId) ?? ctx.payments[0]!;
-  await createEmailClient().sendPaymentInfo({
-    to: email,
-    orderId: order.id,
+  return finalizeHeldOrder({
+    ctx,
     showbuyId,
-    orderNumber: order.id.slice(0, 8),
-    quantity: order.qty,
+    order,
     sectionName: section?.name ?? "Section",
-    totalPesos: pesos(order.total_centavos),
-    paymentLines: [
-      `${payment.platform} · ${payment.account_name} · ${payment.account_number}`,
-    ],
-    deadlineManila: manilaDeadline(order.hold_expires_at),
-    receiptPath: `/receipt/${order.receipt_token}`,
-    rebatePesos:
-      order.card_rebate_centavos > 0 ? pesos(order.card_rebate_centavos) : null,
+    email,
+    paymentAccountId,
+    paymentTiming,
+    receiptFile: paymentTiming === "now" ? receiptFile : null,
   });
-
-  return { ok: true, orderId: order.id, receiptToken: order.receipt_token };
 }

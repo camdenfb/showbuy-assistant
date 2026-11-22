@@ -139,7 +139,7 @@ type ReceiptUpload = {
 - Payment details are saved in each showbuy's settings. A showbuy can have several payment accounts, each with platform (GCash, BPI or Maya), account name, account number and QR code.
 - Prices and fees can't be negative, and the fee can't exceed 100%.
 - The claim code template accepts `{section}`, `{order}`, `{first_seat}`, `{seat}`, `{qty}`, `{discount}` and `{random}`. `{order}` is a per-showbuy sequence starting at `01`. `{first_seat}` and `{seat}` are the first held seat label. `{discount}` is `PW` (PWD), `SR` (senior) or `NO`. It must include `{order}` and `{random}` (3 digits). **[PROPOSED]** `{random}` with at least 6 characters.
-- **Email templates:** each showbuy has a payment info email and a claim code email, each with a subject and body the showbuyer can edit. A new showbuy starts from a default copy. Both accept `{{firstName}}`, `{{orderId}}`, `{{showName}}`, `{{showTime}}`, `{{qty}}`, `{{section}}`, `{{seatWord}}` and `{{cardLine}}`. The payment info email also accepts `{{total}}`, `{{deadline}}`, `{{hours}}`, `{{promoLine}}`, `{{paymentDetails}}`, `{{qrCodes}}` and `{{receiptLink}}`, and must include `{{total}}`, `{{deadline}}`, `{{paymentDetails}}`, `{{receiptLink}}` and `{{cardLine}}`. The claim code email also accepts `{{seats}}` and `{{claimCode}}`, and must include both and `{{cardLine}}`. Saving refuses unknown placeholders and `{{seats}}` in the payment info email, which names no seats. Templates are plain text, customer-entered values are escaped, and subjects can't contain line breaks. The showbuyer can preview a template with a sample order and send a test to themself.
+- **Email templates:** each showbuy has a payment info email and a claim code email, each with a subject and body the showbuyer can edit. A new showbuy starts from a default copy. Both accept `{{firstName}}`, `{{orderId}}`, `{{showName}}`, `{{showTime}}`, `{{qty}}`, `{{section}}`, `{{seatWord}}` and `{{cardLine}}`. The payment info email also accepts `{{total}}`, `{{deadline}}`, `{{hours}}`, `{{promoLine}}`, `{{paymentDetails}}`, `{{qrCodes}}` and `{{receiptLink}}`, and must include `{{total}}`, `{{deadline}}`, `{{paymentDetails}}`, `{{receiptLink}}` and `{{cardLine}}`. The claim code email also accepts `{{seats}}` and `{{claimCode}}`, and must include both and `{{cardLine}}`. Saving refuses unknown placeholders and `{{seats}}` in the payment info email, which names no seats. Templates are plain text, customer-entered values are escaped, and subjects can't contain line breaks. The showbuyer can preview a template with a sample order.
 
 ## Feature 2: Manage seat inventory
 
@@ -186,26 +186,28 @@ type ReceiptUpload = {
 - The form has an optional note of up to 200 characters: "If both are unavailable, what matters most?" It tells customers the note is read by AI and shouldn't include names or medical details. The note isn't saved.
 - Confirming a suggestion submits it as the suggested choice. The server rechecks the seats, promo and price before holding them. If they're no longer free, it suggests again.
 - **Holding is atomic:** all seats in the choice are held or none are. When two customers submit the same seat, only one gets it.
-- Placing an order holds the seats and starts it at Sent Payment Info. The payment email goes out immediately with the order number, quantity, section, total, payment details and QR codes (chosen payment mode first), deadline and private receipt link. It doesn't name seat numbers. When a rebate applies, this email and the claim code email show the rebate amount and say to bring the card on show day.
-- If the email fails, the order moves to Process Order Manually with the reason, and the showbuyer is alerted.
+- Before hold, the customer must choose **Pay later** or **Pay now**.
+- **Pay later:** placing the order holds the seats, starts it at Sent Payment Info, and emails payment details immediately (order number, quantity, section, total, payment details and QR codes with the chosen mode first, deadline and private receipt link). It doesn't name seat numbers. When a rebate applies, this email and the claim code email show the rebate amount and say to bring the card on show day. If the email fails, the order moves to Process Order Manually with the reason, and the showbuyer is alerted.
+- **Pay now:** the form shows payment account details and QR codes (chosen account first) and requires a receipt upload. Submitting holds the seats, does **not** send the payment email, uploads the receipt, and moves the order to Payment Submitted. The customer can go back and change to Pay later before submitting.
+- Orders record `payment_timing` as `now` or `later`. Legacy rows without it are treated as later.
 
 ## Feature 6: Manage orders
 
 - Every valid form creates one order with one status. Submitting the same form twice doesn't create a second order.
-- **Sent Payment Info:** the first status of every order. The seat is on hold, the payment details and QR codes are emailed, and the 48-hour countdown is running. Can move to Payment Submitted, Cancelled or Process Order Manually. The showbuyer can also set it to Paid by hand without a receipt, for example for an offline sale.
+- **Sent Payment Info:** the first status after a hold when payment is still outstanding (Pay later, or Pay now before the receipt finishes uploading). For Pay later, payment details are emailed and the 48-hour countdown is running. Can move to Payment Submitted, Cancelled or Process Order Manually. The showbuyer can also set it to Paid by hand without a receipt, for example for an offline sale.
 - **Payment Submitted:** a receipt was uploaded and the countdown is paused. Can move to Paid, back to Sent Payment Info if rejected (the countdown resumes), Cancelled or Process Order Manually.
 - **Paid:** the showbuyer confirmed payment and the seat is sold direct. When the showbuyer clicks Process orders, the claim code email goes out. Once it's sent, the order changes to Sent Claim Code by itself. Can also move to Process Order Manually, but can't be cancelled.
 - **Sent Claim Code:** final. The email was sent and the order can't be cancelled.
 - **Cancelled:** final, and only possible before payment is confirmed. Cancelling lifts all of the order's holds and leaves it out of gross sales and promo expense. Its seats return to direct buy if they're still unavailable on Ticket2Me. An order with confirmed payment can never be cancelled, including from Process Order Manually. Refunds are not allowed, and the customer is told before submitting.
 - **Process Order Manually:** automation stops and the reason is shown. The seat stays as it is and the countdown is paused until the showbuyer changes the status. **[PROPOSED]**
 - **Manual updates:** the showbuyer can change an order's status from the dashboard, including out of Process Order Manually, within the rules above. Setting Paid by hand counts as confirming payment.
-- **Process orders button:** the showbuyer clicks it to act on status changes. It sends claim code emails for Paid orders and sets them to Sent Claim Code, and sends the payment email for any Sent Payment Info order that hasn't received one. It reports what was sent and what failed. Clicking it twice never sends an email twice.
+- **Process orders button:** the showbuyer clicks it to act on status changes. It sends claim code emails for Paid orders and sets them to Sent Claim Code, and sends the payment email for any Sent Payment Info order with `payment_timing` later (or legacy null) that hasn't received one. It never sends payment emails for Pay now orders. It reports what was sent and what failed. Clicking it twice never sends an email twice.
 - **[PROPOSED]** When 48 hours pass without a receipt, the order is flagged overdue and the showbuyer releases it with one click.
 
 ## Feature 7: Confirm payment
 
 - The customer uploads a PNG, JPEG or WebP receipt of up to 4 MB through the private link. It's stored privately and sets Payment Submitted.
-- AI reads the receipt. Code converts the amount to centavos and compares the amount, recipient and date with the order and its chosen payment account, and checks whether the reference number was used before.
+- AI reads the receipt. Code converts the amount to centavos and compares the amount, recipient and date with the order and its chosen payment account, and checks whether the reference number was used before. Recipient checks use a full last-4 when visible; incomplete masked digits are ignored. QR payee labels (e.g. “Bakli (QR Code)”) are not treated as name mismatches.
 - The showbuyer sees the image, the extracted fields and any warnings, checks that the money arrived, then marks payment confirmed or rejects the receipt.
 - Only that confirmation can set Paid. It changes the seat to sold direct. Process orders then generates a unique claim code and emails it with the seat numbers. After the email is sent, the order changes to Sent Claim Code.
 - If the claim code email fails, the order stays Paid and shows a retry. A retry reuses the same code.
@@ -263,7 +265,7 @@ type ReceiptCheck = {
 - **App:** Next.js 16, TypeScript in strict mode, Tailwind CSS and Zod.
 - **Data:** Supabase Postgres, Auth, private Storage and Cron.
 - **AI:** Claude Haiku 5.5 (`claude-haiku-5-5`) through the Vercel AI SDK.
-- **Email:** the Gmail API, sending from the showbuyer's Google Workspace address with send-only access, or an on-screen outbox when email isn't set up.
+- **Email:** an on-screen outbox only. v1 sends no real email: "sending" an email adds it to the outbox, where the showbuyer can read and copy it.
 - **Quality and delivery:** Vitest, ESLint, Gitleaks and GitHub Actions.
 - **Hosting and monitoring:** Vercel, Vercel Analytics and server logs.
 
@@ -275,7 +277,7 @@ Customer order page        Showbuyer dashboard (login)
            Next.js server on Vercel
            |-- rules: seats, promos, orders, analytics
            |-- AI module -------> Claude (seat assigner, receipts)
-           |-- email adapter ---> Gmail API or demo outbox
+           |-- email adapter ---> on-screen outbox
            |-- T2M adapter -----> Ticket2Me or demo replay
            |
            Supabase: Postgres, Auth, Storage, Cron
@@ -287,13 +289,13 @@ Customer order page        Showbuyer dashboard (login)
 - **Rules engine:** pure TypeScript functions in `/lib/rules`, with no network or database calls, so each rule can be unit tested.
 - **Adapters:** Ticket2Me, email and AI each sit behind an interface with a fake version for tests and the demo.
 - **Data layer:** Postgres tables for showbuys, payment accounts, sections, seats, promos, orders, receipts, sync runs and an audit log. Holds run in one transaction.
-- **Order flow:** load the page, reconcile, submit, hold (or suggest seats, confirm, then hold), email payment details, upload receipt, AI check, showbuyer confirmation, sold direct, claim code email.
+- **Order flow:** load the page, reconcile, choose Pay later or Pay now, submit, hold (or suggest seats, confirm, then hold), then either email payment details (later) or upload receipt on the order page (now), AI check, showbuyer confirmation, sold direct, claim code email.
 - **Delivery:** pull requests run lint, type check, tests, secret scan and build. The main branch deploys to Vercel only when all pass.
 
 ## Constraints
 
 - Use only the tech stack above, and ask before adding another service.
-- **Keep secrets in environment variables:** the Claude key, Supabase service key, Gmail API credentials, cron secret and Ticket2Me address. None reach the browser or Git. Payment details are kept in showbuy settings in the database and never in Git. A customer sees them only after ordering, in the payment email and receipt page.
+- **Keep secrets in environment variables:** the Claude key, Supabase service key, cron secret and Ticket2Me address. None reach the browser or Git. Payment details are kept in showbuy settings in the database and never in Git. A customer sees them only after ordering, in the payment email and receipt page.
 - Validate every input on the server. Check the login on every dashboard action and the cron secret on every scheduled call.
 - Turn on row-level security for every table. Receipt links use long random tokens and work for one order.
 - Rate-limit orders, seat suggestions, receipt uploads and page-triggered reconciliation by IP, and set a monthly spend limit on the Claude key.

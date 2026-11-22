@@ -31,6 +31,7 @@ function order(overrides: Partial<Order> & Pick<Order, "status">): Order {
     suggestedChoice: null,
     appliedDiscount: "none",
     manualReason: null,
+    paymentTiming: "later",
     ...overrides,
   };
 }
@@ -304,6 +305,25 @@ describe("order status rules", () => {
       holdRemainingMs: 48 * 60 * 60 * 1000,
       holdPaused: false,
     });
+  });
+
+  test("Feature 5: pay-now orders never get a payment-details Process orders task", () => {
+    const payNow = order({ status: "sent_payment_info", paymentTiming: "now" });
+    const payLater = order({
+      id: "order-2",
+      status: "sent_payment_info",
+      paymentTiming: "later",
+    });
+    const legacy = order({
+      id: "order-3",
+      status: "sent_payment_info",
+      paymentTiming: null,
+    });
+
+    expect(planProcessOrders([payNow, payLater, legacy])).toEqual([
+      { orderId: "order-2", task: "payment_details" },
+      { orderId: "order-3", task: "payment_details" },
+    ]);
   });
 
   test("Feature 6: the showbuyer can move an order only along the confirmed status paths", () => {

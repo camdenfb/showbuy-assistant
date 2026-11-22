@@ -1,8 +1,8 @@
 # Pay timing + AI receipt check
 
 **Date:** 2026-11-22  
-**Status:** draft — awaiting approval  
-**Source of truth after approval:** update `spec.md` Feature 5 (order/email timing) and Feature 7 / AI receipt check; this doc is the build brief.
+**Status:** approved (simplified) — hold on submit after Pay later / Pay now choice (no soft-cart token). Soft-cart 15‑minute pending checkout was deferred.  
+**Source of truth:** `spec.md` Feature 5 / Feature 6 / Feature 7.
 
 ## Intent
 

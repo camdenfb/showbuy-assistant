@@ -8,6 +8,8 @@ export type OrderStatus =
   | "cancelled"
   | "process_manually";
 
+export type PaymentTiming = "now" | "later";
+
 export type Order = {
   id: string;
   status: OrderStatus;
@@ -21,6 +23,8 @@ export type Order = {
   suggestedChoice: string[] | null;
   appliedDiscount: "none" | "promo" | "rebate";
   manualReason: string | null;
+  /** null = legacy orders, treated as later for payment email. */
+  paymentTiming: PaymentTiming | null;
 };
 
 export type EmailTask = "payment_details" | "claim_code";
@@ -122,7 +126,12 @@ export function planProcessOrders(
 ): { orderId: string; task: EmailTask }[] {
   const tasks: { orderId: string; task: EmailTask }[] = [];
   for (const order of orders) {
-    if (order.status === "sent_payment_info" && order.paymentEmailSentAt === null) {
+    // Pay-now orders already saw QRs on the order page — never email payment details.
+    if (
+      order.status === "sent_payment_info" &&
+      order.paymentEmailSentAt === null &&
+      order.paymentTiming !== "now"
+    ) {
       tasks.push({ orderId: order.id, task: "payment_details" });
     } else if (
       order.status === "paid" &&
