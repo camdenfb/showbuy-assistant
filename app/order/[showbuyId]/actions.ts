@@ -461,7 +461,7 @@ export async function submitOrder(
     sectionName: section.name,
     totalPesos: pesos(order.total_centavos),
     paymentLines: [
-      `${payment.platform.toUpperCase()} · ${payment.account_name} · ${payment.account_number}`,
+      `${payment.platform} · ${payment.account_name} · ${payment.account_number}`,
     ],
     deadlineManila: manilaDeadline(order.hold_expires_at),
     receiptPath: `/receipt/${order.receipt_token}`,
@@ -612,7 +612,7 @@ export async function confirmSuggestion(
     sectionName: section?.name ?? "Section",
     totalPesos: pesos(order.total_centavos),
     paymentLines: [
-      `${payment.platform.toUpperCase()} · ${payment.account_name} · ${payment.account_number}`,
+      `${payment.platform} · ${payment.account_name} · ${payment.account_number}`,
     ],
     deadlineManila: manilaDeadline(order.hold_expires_at),
     receiptPath: `/receipt/${order.receipt_token}`,

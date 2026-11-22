@@ -1,6 +1,6 @@
 export type OutboxMessage = {
   id: string;
-  kind: "payment_info";
+  kind: "payment_info" | "claim_code";
   to: string;
   subject: string;
   body: string;

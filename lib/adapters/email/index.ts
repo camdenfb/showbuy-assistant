@@ -14,8 +14,24 @@ export type PaymentInfoEmail = {
   rebatePesos: string | null;
 };
 
+export type ClaimCodeEmail = {
+  to: string;
+  orderId: string;
+  showbuyId: string;
+  orderNumber: string;
+  claimCode: string;
+  seatLabels: string[];
+  sectionName: string;
+  rebatePesos: string | null;
+};
+
 export type EmailClient = {
-  sendPaymentInfo: (email: PaymentInfoEmail) => Promise<{ ok: true } | { ok: false; reason: string }>;
+  sendPaymentInfo: (
+    email: PaymentInfoEmail,
+  ) => Promise<{ ok: true } | { ok: false; reason: string }>;
+  sendClaimCode: (
+    email: ClaimCodeEmail,
+  ) => Promise<{ ok: true } | { ok: false; reason: string }>;
 };
 
 export function createDemoEmailClient(): EmailClient {
@@ -39,6 +55,29 @@ export function createDemoEmailClient(): EmailClient {
         kind: "payment_info",
         to: email.to,
         subject: `Payment details for order ${email.orderNumber}`,
+        body,
+        orderId: email.orderId,
+        showbuyId: email.showbuyId,
+      });
+      return { ok: true };
+    },
+    async sendClaimCode(email) {
+      const body = [
+        `Order ${email.orderNumber}`,
+        `Claim code: ${email.claimCode}`,
+        `Seats: ${email.seatLabels.join(", ")}`,
+        `Section: ${email.sectionName}`,
+        email.rebatePesos
+          ? `Show-day rebate ₱${email.rebatePesos} — bring your card.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      pushOutbox({
+        kind: "claim_code",
+        to: email.to,
+        subject: `Claim code for order ${email.orderNumber}`,
         body,
         orderId: email.orderId,
         showbuyId: email.showbuyId,

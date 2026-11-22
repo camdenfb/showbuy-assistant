@@ -15,24 +15,36 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl bg-white px-6 py-12 text-zinc-900">
-      <h1 className="text-2xl font-semibold text-zinc-900">Dashboard</h1>
-      <p className="mt-2 text-sm text-zinc-600">Signed in as {auth.email}</p>
-      <ul className="mt-8 space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold text-zinc-900">Dashboard</h1>
+          <p className="mt-2 text-sm text-zinc-600">Signed in as {auth.email}</p>
+        </div>
+        <Link href="/dashboard/outbox" className="text-sm font-medium underline">
+          Demo outbox
+        </Link>
+      </div>
+      <ul className="mt-8 space-y-4">
         {(showbuys ?? []).map((showbuy) => (
-          <li
-            key={showbuy.id}
-            className="flex items-center justify-between border-b border-zinc-200 py-3 text-zinc-900"
-          >
-            <span>{showbuy.name}</span>
-            <span className="flex gap-3 text-sm font-medium">
-              <Link className="text-zinc-900 underline" href={`/order/${showbuy.id}`}>
-                Order page
+          <li key={showbuy.id} className="border-b border-zinc-200 py-4 text-zinc-900">
+            <p className="font-medium">{showbuy.name}</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              {new Date(showbuy.starts_at).toLocaleString("en-PH", {
+                timeZone: "Asia/Manila",
+              })}
+            </p>
+            <span className="mt-3 flex flex-wrap gap-3 text-sm font-medium">
+              <Link className="underline" href={`/dashboard/showbuys/${showbuy.id}/orders`}>
+                Orders
               </Link>
-              <Link
-                className="text-zinc-900 underline"
-                href={`/dashboard/showbuys/${showbuy.id}/import`}
-              >
+              <Link className="underline" href={`/dashboard/showbuys/${showbuy.id}/payments`}>
+                Payments
+              </Link>
+              <Link className="underline" href={`/dashboard/showbuys/${showbuy.id}/import`}>
                 Import
+              </Link>
+              <Link className="underline" href={`/order/${showbuy.id}`}>
+                Order page
               </Link>
             </span>
           </li>

@@ -663,7 +663,7 @@ export function OrderForm({
         >
           {payments.map((payment) => (
             <option key={payment.id} value={payment.id}>
-              {payment.platform.toUpperCase()} · {payment.account_name}
+              {payment.platform}
             </option>
           ))}
         </select>
