@@ -42,4 +42,4 @@ An hourly cron hits `/api/reconcile`. Holds run in one database transaction. Pul
 - Keep secrets in environment variables. Never read, print, or commit `.env` files. Payment details live in showbuy settings, not in Git.
 - Never log names, emails, receipt contents, or claim codes.
 - Use only fictional shows, buyers, receipts, seat plans, and payment details.
-- AI reads receipts only. It cannot change a status, seat, or price, send email, or set an order to Paid. Only the showbuyer's confirmation can set Paid.
+- AI has two jobs: rank seat options that code supplies (seat assigner, required) and read receipts (optional). Discard anything it returns that code didn't supply. The seat assigner never receives names, contact details, or prices. It cannot hold or assign a seat, change a status, seat, or price, send email, or set an order to Paid. Only the showbuyer's confirmation can set Paid.
