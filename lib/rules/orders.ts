@@ -18,7 +18,7 @@ export type Order = {
   claimEmailSentAt: string | null;
   claimCode: string | null;
   heldSeatIds: string[];
-  appliedDiscount: "none" | "promo" | "card";
+  appliedDiscount: "none" | "promo" | "rebate";
   manualReason: string | null;
 };
 
@@ -115,12 +115,17 @@ export function claimCodeAllowed(order: Order, seats: Seat[]): boolean {
 
 export function planProcessOrders(
   orders: Order[],
+  seatsByOrderId: Record<string, Seat[]> = {},
 ): { orderId: string; task: EmailTask }[] {
   const tasks: { orderId: string; task: EmailTask }[] = [];
   for (const order of orders) {
     if (order.status === "sent_payment_info" && order.paymentEmailSentAt === null) {
       tasks.push({ orderId: order.id, task: "payment_details" });
-    } else if (order.status === "paid" && order.claimEmailSentAt === null) {
+    } else if (
+      order.status === "paid" &&
+      order.claimEmailSentAt === null &&
+      claimCodeAllowed(order, seatsByOrderId[order.id] ?? [])
+    ) {
       tasks.push({ orderId: order.id, task: "claim_code" });
     }
   }

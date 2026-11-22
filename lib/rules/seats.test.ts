@@ -263,7 +263,21 @@ describe("seat rules", () => {
     expect(afterClaim.seats).toEqual([held, next]);
   });
 
-  test("a choice holds every seat or none, and does not fall through when a seat is unsellable", () => {
+  test("a Paid order can move seats until the claim code is sent", () => {
+    const sold = seat({ id: "c5", status: "sold_direct" });
+    const next = seat({ id: "c8", number: 8, label: "C8", position: 8, status: "direct_buy" });
+
+    const moved = moveHold([sold, next], ["c5"], ["c8"], false);
+    const afterClaim = moveHold([sold, next], ["c5"], ["c8"], true);
+
+    expect(moved.ok).toBe(true);
+    expect(moved.seats.find((item) => item.id === "c5")?.status).toBe("direct_buy");
+    expect(moved.seats.find((item) => item.id === "c8")?.status).toBe("sold_direct");
+    expect(afterClaim.ok).toBe(false);
+    expect(afterClaim.seats).toEqual([sold, next]);
+  });
+
+  test("a choice holds every seat or none, and falls through to the second choice when any first seat cannot be held", () => {
     const free = seat({ id: "c5", position: 5 });
     const taken = seat({ id: "c6", number: 6, label: "C6", position: 6, status: "on_hold" });
     const backup = seat({ id: "c8", number: 8, label: "C8", position: 8 });
@@ -276,14 +290,24 @@ describe("seat rules", () => {
       status: "available_t2m",
       t2mStatus: "available",
     });
+    const conflicted = seat({
+      id: "c7",
+      number: 7,
+      label: "C7",
+      position: 7,
+      conflict: "t2m_mismatch",
+    });
 
     const partial = holdChoices([free, taken, backup], ["c5", "c6"], ["c8"]);
     const unsellable = holdChoices([onSale, backup], ["d1"], ["c8"]);
+    const withConflict = holdChoices([conflicted, backup], ["c7"], ["c8"]);
 
-    expect(partial.heldSeatIds).toEqual([]);
+    expect(partial.heldSeatIds).toEqual(["c8"]);
     expect(partial.seats.find((item) => item.id === "c5")?.status).toBe("direct_buy");
-    expect(unsellable.heldSeatIds).toEqual([]);
-    expect(unsellable.seats.find((item) => item.id === "c8")?.status).toBe("direct_buy");
+    expect(unsellable.heldSeatIds).toEqual(["c8"]);
+    expect(unsellable.seats.find((item) => item.id === "c8")?.status).toBe("on_hold");
+    expect(withConflict.heldSeatIds).toEqual(["c8"]);
+    expect(withConflict.seats.find((item) => item.id === "c7")?.status).toBe("direct_buy");
   });
 
   test("SINGLE ignores an aisle gap and does not treat an on-hold neighbor as available", () => {
@@ -376,8 +400,9 @@ describe("seat rules", () => {
       t2mStatus: "available",
     });
 
-    const refused = holdChoices([outside, inside], ["d5"], ["c5"], scope);
+    const fallsToInScope = holdChoices([outside, inside], ["d5"], ["c5"], scope);
     const held = holdChoices([outside, inside], ["c5"], ["d5"], scope);
+    const bothOutOfScope = holdChoices([outside, inside], ["d5"], ["d5"], scope);
     const moved = moveHold(
       [seat({ id: "c5", status: "on_hold" }), outside],
       ["c5"],
@@ -391,11 +416,12 @@ describe("seat rules", () => {
     expect(customerOffer(outsideOnSale, scope)).toBe("unavailable");
     expect(canHold(inside, scope)).toBe(true);
     expect(customerOffer(inside, scope)).toBe("direct_buy");
-    expect(refused.heldSeatIds).toEqual([]);
-    expect(refused.seats.find((item) => item.id === "d5")?.status).toBe("direct_buy");
-    expect(refused.seats.find((item) => item.id === "c5")?.status).toBe("direct_buy");
+    expect(fallsToInScope.heldSeatIds).toEqual(["c5"]);
+    expect(fallsToInScope.seats.find((item) => item.id === "d5")?.status).toBe("direct_buy");
+    expect(fallsToInScope.seats.find((item) => item.id === "c5")?.status).toBe("on_hold");
     expect(held.heldSeatIds).toEqual(["c5"]);
     expect(held.seats.find((item) => item.id === "d5")?.status).toBe("direct_buy");
+    expect(bothOutOfScope.heldSeatIds).toEqual([]);
     expect(moved.ok).toBe(false);
     expect(moved.seats.find((item) => item.id === "c5")?.status).toBe("on_hold");
     expect(moved.seats.find((item) => item.id === "d5")?.status).toBe("direct_buy");

@@ -237,6 +237,9 @@ describe("order status rules", () => {
     const waiting = order({ status: "sent_payment_info" });
 
     expect(claimCodeAllowed(paid, [conflicted])).toBe(false);
+    expect(
+      planProcessOrders([paid], { "order-1": [conflicted] }),
+    ).toEqual([]);
     expect(paymentEmailFailed(waiting, "payment_email_failed").status).toBe(
       "process_manually",
     );

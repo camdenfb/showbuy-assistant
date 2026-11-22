@@ -71,14 +71,6 @@ export function customerOffer(
   return "unavailable";
 }
 
-function isTaken(seat: Seat): boolean {
-  return (
-    seat.status === "on_hold" ||
-    seat.status === "sold_direct" ||
-    seat.status === "sold_t2m"
-  );
-}
-
 function withHold(seats: Seat[], ids: string[], scope: SaleScope): Seat[] | null {
   if (ids.length === 0) return null;
   const wanted = new Set(ids);
@@ -99,12 +91,7 @@ export function holdChoices(
   const firstHeld = withHold(seats, firstChoice, scope);
   if (firstHeld) return { seats: firstHeld, heldSeatIds: [...firstChoice] };
 
-  const firstSeats = firstChoice.map((id) => seats.find((seat) => seat.id === id));
-  const firstAllTaken =
-    firstSeats.length > 0 &&
-    firstSeats.every((item): item is Seat => item !== undefined && isTaken(item));
-  if (!firstAllTaken) return { seats, heldSeatIds: [] };
-
+  // Any first-choice seat that cannot be held (taken, conflict, unsellable) → try second.
   const secondHeld = withHold(seats, secondChoice, scope);
   if (!secondHeld) return { seats, heldSeatIds: [] };
   return { seats: secondHeld, heldSeatIds: [...secondChoice] };
@@ -259,16 +246,26 @@ export function moveHold(
   if (claimCodeSent || fromSeatIds.length === 0) return { ok: false, seats };
 
   const from = fromSeatIds.map((id) => seats.find((seat) => seat.id === id));
-  if (from.some((seat) => seat === undefined || seat.status !== "on_hold")) {
+  if (
+    from.some(
+      (seat) =>
+        seat === undefined ||
+        (seat.status !== "on_hold" && seat.status !== "sold_direct"),
+    )
+  ) {
     return { ok: false, seats };
   }
 
+  const wasSoldDirect = from.every((seat) => seat!.status === "sold_direct");
   const released = seats.map((seat) =>
     fromSeatIds.includes(seat.id) ? releaseSeat(seat) : seat,
   );
   const held = withHold(released, toSeatIds, scope);
   if (!held) return { ok: false, seats };
-  return { ok: true, seats: held };
+  return {
+    ok: true,
+    seats: wasSoldDirect ? markSoldDirect(held, toSeatIds) : held,
+  };
 }
 
 export function inventorySummary(

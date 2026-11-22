@@ -121,7 +121,7 @@ CRON_SECRET=
 DEMO_MODE=true
 ```
 
-- `ANTHROPIC_API_KEY` comes from the Claude Console. Set a monthly spend limit there.
+- `ANTHROPIC_API_KEY` comes from the Claude Console. Set a monthly spend limit there. It's needed from slice 4, both here and in Vercel.
 - `CRON_SECRET` is any long random value, for example from `openssl rand -hex 32`.
 - Email and Ticket2Me settings aren't needed in demo mode, which uses an on-screen outbox and a fictional seat plan.
 
@@ -145,18 +145,27 @@ Docker isn't needed for these, or for pushing migrations with `npx supabase db p
 
 Give Cursor one slice at a time. Read the diff, run `npm test` and try it in the browser before committing.
 
+**Build order: 1, 2, 3, 4, 5, 7. Then 6 and 8, if time permits.** Slice numbers are kept so prompts and commits still match.
+
+### Required
+
 | # | Slice | Prompt for Cursor | Commit |
 |---|---|---|---|
 | 1 | Rules and tests | Read spec.md. Implement seat, price, discount and order-status rules in lib/rules as pure functions. Write the Vitest tests first, citing acceptance criteria numbers. No UI or database. | `feat: add tested business rules` |
 | 2 | Database | Write Supabase migrations for the spec's data types with row-level security, a transaction for holds, and seed data for two fictional showbuys. Show me the SQL before pushing it. | `feat: add schema and demo data` |
 | 3 | Seat map import | Build the Ticket2Me adapter and import screen from spec.md. Create a small fictional seat plan with the same fields: rows with rowNumber and seats, each with ticket_id, seat_id, seat_no and status (0, 2, -1). An EMPTY seat_no is a gap. | `feat: import seat map` |
-| 4 | Customer order | Build the mobile-first customer page: seat map, two choices, form, price preview, atomic hold and the demo outbox email. | `feat: add customer ordering` |
-| 5 | Dashboard | Build the login, showbuy switcher, payment settings, order tracker, manual status update and Process orders button. | `feat: add order dashboard` |
-| 6 | AI receipt check | Build the receipt upload and the spec's AI module. Test with fake AI responses, including an image that tries to give instructions. | `feat: add AI receipt check` |
-| 7 | Reconciliation | Build reconciliation as specified, protected by CRON_SECRET, with the demo replay. Never overwrite a hold made during a check. | `feat: reconcile inventory` |
+| 4 | Customer order | Build the mobile-first customer page: seat map, two choices, form, price preview, atomic hold, the demo outbox email, and the AI seat assigner from spec.md with its fallback. Test it with fake AI responses, including invalid IDs, a timeout and a note that tries to give instructions. | `feat: add customer ordering` |
+| 5 | Dashboard | Build the login, showbuy switcher, payment settings, order tracker, private receipt upload, manual payment confirmation, manual status update and Process orders button. No AI yet. | `feat: add order dashboard` |
+| 7 | Reconciliation | Build reconciliation as specified, protected by CRON_SECRET, with the demo replay. Schedule it hourly with Supabase Cron and run it on order page load. Never overwrite a hold made during a check. | `feat: reconcile inventory` |
+
+### Optional, if time permits
+
+| # | Slice | Prompt for Cursor | Commit |
+|---|---|---|---|
+| 6 | AI receipt check | Add the spec's AI module to the existing receipt upload. Test with fake AI responses, including an image that tries to give instructions. | `feat: add AI receipt check` |
 | 8 | Promos and analytics | Build promo management and the analytics dashboard exactly as specified. | `feat: add promos and analytics` |
 
-If time runs short, slices 1 to 6 already make a complete demo.
+> **Brief requirement:** the AI seat assigner in slice 4 is the required AI capability, so don't cut it. Slice 6 is an optional second one.
 
 ## 7. Vercel
 

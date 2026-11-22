@@ -1,5 +1,5 @@
 export type DiscountCard = "none" | "pwd" | "senior";
-export type AppliedDiscount = "none" | "promo" | "card";
+export type AppliedDiscount = "none" | "promo" | "rebate";
 
 export type Promo = {
   code: string;
@@ -25,7 +25,7 @@ export type PriceQuote =
       applied: AppliedDiscount;
       tickets: TicketPrice[];
       totalCentavos: number;
-      cardDiscountCentavos: number;
+      cardRebateCentavos: number;
     }
   | { ok: false; reason: string };
 
@@ -53,7 +53,7 @@ export function ticket2meFeeCentavos(
   return Math.round((soldOnTicket2Me * feePercent) / 100);
 }
 
-function cardDiscountFor(regularPriceCentavos: number): number {
+function cardRebateFor(regularPriceCentavos: number): number {
   return Math.round((regularPriceCentavos * CARD_PERCENT) / 100);
 }
 
@@ -98,29 +98,16 @@ export function quotePrice(input: {
     }
   }
 
-  const cardSavings =
+  const cardRebateCentavos =
     input.discountCard === "none"
       ? 0
       : input.seats.reduce(
-          (sum, seat) => sum + cardDiscountFor(seat.regularPriceCentavos),
-          0,
-        );
-  const promoSavings =
-    promoPrices === null
-      ? null
-      : input.seats.reduce(
-          (sum, seat, index) => sum + seat.regularPriceCentavos - promoPrices![index]!,
+          (sum, seat) => sum + cardRebateFor(seat.regularPriceCentavos),
           0,
         );
 
-  const cardOffered = input.discountCard !== "none";
-  const promoOffered = promoSavings !== null;
-  if (cardOffered && promoOffered && cardSavings === promoSavings) {
-    return { ok: false, reason: "equal_savings" };
-  }
-
-  const applyPromo = promoOffered && (!cardOffered || promoSavings! > cardSavings);
-  if (applyPromo && promoPrices) {
+  // Valid promo always wins; rebate is disregarded (never compare savings).
+  if (promoPrices) {
     const tickets = input.seats.map((seat, index) => ({
       regularPriceCentavos: seat.regularPriceCentavos,
       pricePerSeatCentavos: promoPrices![index]!,
@@ -130,22 +117,21 @@ export function quotePrice(input: {
       applied: "promo",
       tickets,
       totalCentavos: tickets.reduce((sum, ticket) => sum + ticket.pricePerSeatCentavos, 0),
-      cardDiscountCentavos: 0,
+      cardRebateCentavos: 0,
     };
   }
 
-  if (cardOffered) {
+  if (input.discountCard !== "none") {
     const tickets = input.seats.map((seat) => ({
       regularPriceCentavos: seat.regularPriceCentavos,
-      pricePerSeatCentavos:
-        seat.regularPriceCentavos - cardDiscountFor(seat.regularPriceCentavos),
+      pricePerSeatCentavos: seat.regularPriceCentavos,
     }));
     return {
       ok: true,
-      applied: "card",
+      applied: "rebate",
       tickets,
       totalCentavos: tickets.reduce((sum, ticket) => sum + ticket.pricePerSeatCentavos, 0),
-      cardDiscountCentavos: cardSavings,
+      cardRebateCentavos,
     };
   }
 
@@ -158,7 +144,7 @@ export function quotePrice(input: {
     applied: "none",
     tickets,
     totalCentavos: tickets.reduce((sum, ticket) => sum + ticket.pricePerSeatCentavos, 0),
-    cardDiscountCentavos: 0,
+    cardRebateCentavos: 0,
   };
 }
 
@@ -218,10 +204,10 @@ export function profitCentavos(input: {
   feesCentavos: number;
   capitalCentavos: number;
   otherExpensesCentavos: number;
-  cardDiscountCentavos: number;
-  deductCardDiscounts: boolean;
+  cardRebateCentavos: number;
+  deductCardRebates: boolean;
 }): number {
-  const card = input.deductCardDiscounts ? input.cardDiscountCentavos : 0;
+  const card = input.deductCardRebates ? input.cardRebateCentavos : 0;
   return (
     input.grossCentavos -
     input.promoExpenseCentavos -
