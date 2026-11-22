@@ -1,7 +1,7 @@
 -- Requires migrations + seed (e.g. supabase db reset locally).
 begin;
 
-select plan(13);
+select plan(15);
 
 select is(
   (
@@ -215,6 +215,44 @@ select is(
       and status <> 'cancelled'),
   1,
   'exactly one non-cancelled order used the last promo'
+);
+
+-- is_for_sale enforced in hold_seats
+update public.sections
+set is_for_sale = false
+where id = 'a2222222-a222-a222-a222-a22222222222';
+
+select throws_ok(
+  $q$ select public.hold_seats(
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    'not-for-sale',
+    'X', 'x@example.test', '09000000099',
+    'a2222222-a222-a222-a222-a22222222222',
+    1,
+    array['a4000005-a400-a400-a400-a40000000005']::uuid[],
+    array['a4000005-a400-a400-a400-a40000000005']::uuid[],
+    '{"tickets":[{"regularPriceCentavos":500000,"pricePerSeatCentavos":500000}],"totalCentavos":500000,"appliedDiscount":"none","cardRebateCentavos":0}'::jsonb,
+    '{"tickets":[{"regularPriceCentavos":500000,"pricePerSeatCentavos":500000}],"totalCentavos":500000,"appliedDiscount":"none","cardRebateCentavos":0}'::jsonb,
+    null,
+    'none',
+    'a1111111-a111-a111-a111-a11111111111',
+    null,
+    null
+  ) $q$,
+  'P0001',
+  'hold_seats refuses a section that is not for sale'
+);
+
+set local role anon;
+select throws_ok(
+  $q$ select public.import_seat_map(
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    false,
+    '[]'::jsonb,
+    '[]'::jsonb
+  ) $q$,
+  '42501',
+  'anon cannot execute import_seat_map'
 );
 
 select * from finish();
