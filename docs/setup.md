@@ -68,7 +68,7 @@ npm install @supabase/supabase-js @supabase/ssr ai @ai-sdk/anthropic zod
 ```
 
 ```bash
-npm install -D vitest supabase
+npm install -D vitest supabase @types/node@26
 ```
 
 ```bash
@@ -100,8 +100,8 @@ git add AGENTS.md CLAUDE.md .cursorrules && git commit -m "docs: add AI project 
 ## 4. Publish to GitHub
 
 1. Run `git status` and check that no `.env` file or private file is listed.
-2. In Cursor, open **Source Control** and click **Publish Branch**.
-3. Sign in to GitHub when asked, keep the name `showbuy-assistant`, and choose **public**.
+2. If you don't have a GitHub repo yet, open **Source Control** in Cursor, click **Publish Branch** and choose **public**.
+3. If you already made one, connect it with `git remote add origin <repo URL>`, then run `git push -u origin main`. The repo must be public by the time you submit.
 
 ## 5. Supabase
 
