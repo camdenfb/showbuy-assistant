@@ -3,8 +3,8 @@ import {
   type ClaimCodeEmail,
   type EmailSendResult,
   type PaymentInfoEmail,
-} from "@/lib/adapters/email";
-import type { createSupabaseServiceClient } from "@/lib/supabase/server";
+} from "../adapters/email";
+import type { createSupabaseServiceClient } from "../supabase/server";
 
 type ServiceClient = ReturnType<typeof createSupabaseServiceClient>;
 type EmailType = "payment_info" | "claim_code";

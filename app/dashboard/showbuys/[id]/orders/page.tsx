@@ -178,7 +178,7 @@ export default async function OrdersPage({ params }: Props) {
         ]}
       />
       <h1 className="mt-4 text-2xl font-semibold">Orders</h1>
-      <p class="mt-1 text-sm text-zinc-600">{showbuy.name}</p>
+      <p className="mt-1 text-sm text-zinc-600">{showbuy.name}</p>
       <div className="mt-8">
         <OrdersClient showbuyId={id} orders={cards} />
       </div>

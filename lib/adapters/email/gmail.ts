@@ -2,7 +2,7 @@ import {
   buildMimeMessage,
   escapeHtml,
   toBase64Url,
-} from "@/lib/rules/email-safe";
+} from "../../rules/email-safe";
 import type { ClaimCodeEmail, EmailClient, PaymentInfoEmail } from "./index";
 
 type EnvBag = Record<string, string | undefined>;
