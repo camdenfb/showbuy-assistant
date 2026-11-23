@@ -64,7 +64,7 @@ export default async function OrdersPage({ params }: Props) {
   const { data: orderRows } = await supabase
     .from("orders")
     .select(
-      "id, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, promo_code, manual_reason, total_centavos, card_rebate_centavos, qty, name, email, mobile, receipt_token, payment_timing",
+      "id, status, hold_expires_at, payment_confirmed_at, payment_email_sent_at, claim_email_sent_at, claim_code, held_seat_ids, suggested_choice_seat_ids, applied_discount, discount_card, promo_code, manual_reason, payment_timing, name, email, mobile, qty, total_centavos, card_rebate_centavos, receipt_token, created_at",
     )
     .eq("showbuy_id", id)
     .order("created_at", { ascending: false });
@@ -112,7 +112,11 @@ export default async function OrdersPage({ params }: Props) {
     }
   }
 
-  const nowMs = Date.now();
+  const nowMs = await supabase
+    .rpc("pg_catalog.current_timestamp")
+    .then(({ data }) =>
+      typeof data === "string" ? Date.parse(data) : Date.now(),
+    );
   const cards: OrderCard[] = [];
   for (const row of orderRows ?? []) {
     const order = mapDbOrder(row, nowMs);
@@ -177,7 +181,7 @@ export default async function OrdersPage({ params }: Props) {
         ]}
       />
       <h1 className="mt-4 text-2xl font-semibold">Orders</h1>
-      <p className="mt-1 text-sm text-zinc-600">{showbuy.name}</p>
+      <p class="mt-1 text-sm text-zinc-600">{showbuy.name}</p>
       <div className="mt-8">
         <OrdersClient showbuyId={id} orders={cards} />
       </div>
