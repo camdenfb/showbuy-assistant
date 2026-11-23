@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { requireShowbuyer } from "@/lib/auth/require-showbuyer";
+import { wallClockMs } from "@/lib/clock";
 import { canTransition, type OrderStatus } from "@/lib/rules/orders";
 import { mapDbOrder } from "@/lib/order/map-order";
 import type { ReceiptWarning } from "@/lib/rules/receipt-check";
@@ -112,11 +113,7 @@ export default async function OrdersPage({ params }: Props) {
     }
   }
 
-  const nowMs = await supabase
-    .rpc("pg_catalog.current_timestamp")
-    .then(({ data }) =>
-      typeof data === "string" ? Date.parse(data) : Date.now(),
-    );
+  const nowMs = wallClockMs();
   const cards: OrderCard[] = [];
   for (const row of orderRows ?? []) {
     const order = mapDbOrder(row, nowMs);
