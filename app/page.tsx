@@ -2,6 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireShowbuyer } from "@/lib/auth/require-showbuyer";
 
+export const instant = false;
+
 export default async function HomePage() {
   const auth = await requireShowbuyer();
   if (auth.ok) redirect("/dashboard");
