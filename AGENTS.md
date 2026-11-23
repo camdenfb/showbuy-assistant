@@ -28,7 +28,7 @@ Requires Node `26.x`.
 The customer order page and the showbuyer dashboard contain no business rules. Both talk to the Next.js server on Vercel, which owns:
 
 - Pure rules for seats, promos, orders, and analytics in `lib/rules` (no network or database calls)
-- Adapters for AI (Claude Haiku 5.5 via the Vercel AI SDK), email (Gmail API with send-only access, or an on-screen outbox when email isn't set up), and Ticket2Me (live read, or demo replay)
+- Adapters for AI (Claude Haiku 5.5 via the Vercel AI SDK), email (an on-screen outbox only; v1 sends no real email), and Ticket2Me (live read, or demo replay)
 - Supabase Postgres, Auth, private Storage, and Cron
 
 An hourly cron hits `/api/reconcile`. Holds run in one database transaction. Pull requests run lint, type check, tests, secret scan, and build; `main` deploys to Vercel only when all pass.

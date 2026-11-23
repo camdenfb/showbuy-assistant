@@ -120,30 +120,13 @@ ANTHROPIC_API_KEY=
 CRON_SECRET=
 DEMO_MODE=true
 TICKET2ME_EVENT_SERVICE_URL=
-EMAIL_MODE=outbox
-EMAIL_FROM=
 APP_URL=http://localhost:3000
-GMAIL_CLIENT_ID=
-GMAIL_CLIENT_SECRET=
-GMAIL_REFRESH_TOKEN=
 ```
 
 - `ANTHROPIC_API_KEY` comes from the Claude Console. Set a monthly spend limit there. It's needed from slice 4, both here and in Vercel.
 - `CRON_SECRET` is any long random value, for example from `openssl rand -hex 32`.
-- With `EMAIL_MODE=outbox`, emails go to the on-screen outbox and nothing is sent. To send real email, follow **Gmail** below and set `EMAIL_MODE=gmail`. In Vercel, set `APP_URL` to the live address.
+- `APP_URL` builds the receipt links. In Vercel, set it to the live address. Emails go only to the on-screen outbox, and nothing is sent.
 - With `DEMO_MODE=true`, Ticket2Me uses the fictional Harbor Lights seat plan. With `DEMO_MODE=false`, set `TICKET2ME_EVENT_SERVICE_URL` to Ticket2Me's event-service base URL so the server can read `/show/{id}/get_seat_plan`. Leave `DEMO_MODE` unset only if you want fail-closed (no Ticket2Me calls).
-
-### Gmail
-
-The app sends from your Google Workspace address with a send-only permission. It can't read your mail.
-
-1. At https://console.cloud.google.com, create a project and enable the **Gmail API**.
-2. Set up the **OAuth consent screen** as **Internal**. If Internal isn't offered, the account isn't Google Workspace, so stop and choose another route. An External app in testing mode stops sending after 7 days.
-3. Create an **OAuth client ID** of type **Web application**, with `https://developers.google.com/oauthplayground` as an authorized redirect URI.
-4. At https://developers.google.com/oauthplayground, open the settings, tick **Use your own OAuth credentials** and enter the client ID and secret. Authorize only `https://www.googleapis.com/auth/gmail.send`, signed in as the sending address, then exchange the code for tokens.
-5. Put the client ID, client secret and refresh token in `.env.local` and Vercel yourself. Set `EMAIL_FROM` to `Showbuy Assistant <your address>`.
-
-If a token ever leaks, remove the app under **Google Account > Security > Third-party connections**, then repeat step 4.
 
 Connect the database:
 
