@@ -22,6 +22,7 @@ export function shouldReconcileShowbuy(input: {
 }
 
 export function t2mWireToStatus(status: number): T2mStatus {
+  // Ticket2Me: 0 = on sale; 2 = sold there; -1 = unavailable (we may sell direct).
   if (status === 0) return "available";
   if (status === 2) return "sold";
   if (status === -1) return "unavailable";

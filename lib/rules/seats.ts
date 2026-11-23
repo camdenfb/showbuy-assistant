@@ -133,6 +133,7 @@ function applyReading(seat: Seat, t2mStatus: T2mStatus): Seat {
     case "direct_buy":
     case "on_hold":
     case "sold_direct":
+      // Expected Ticket2Me state is unavailable (-1). On sale or sold there is a conflict.
       return t2mStatus === "unavailable"
         ? { ...next, conflict: null }
         : { ...next, conflict: "t2m_mismatch" };

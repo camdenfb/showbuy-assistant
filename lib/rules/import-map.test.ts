@@ -64,9 +64,11 @@ describe("Ticket2Me seat map import rules", () => {
     expect(c2?.position).toBe(2);
     expect(c1?.position).toBe(0);
     expect(c3?.status).toBe("sold_t2m");
+    expect(c3?.t2mStatus).toBe("sold");
     expect(mapped.seats.some((s) => s.label === "EMPTY")).toBe(false);
     expect(canHold(c2!)).toBe(false);
     expect(customerOffer(c2!)).toBe("unavailable");
+    expect(customerOffer(c3!)).toBe("unavailable");
   });
 
   test("AC12: an imported on-sale seat offers Ticket2Me and cannot be held", () => {
@@ -223,7 +225,7 @@ describe("Ticket2Me seat map import rules", () => {
     expect(mapped.seats.find((s) => s.label === "C1")?.status).toBe("on_hold");
   });
 
-  test("sold T2M seats can be reclassified as pull-outs or kept as sold_t2m", () => {
+  test("wire status 2 is sold on Ticket2Me and rejects classification", () => {
     const parsed = validateT2mWire(
       wire([
         row(1, [
@@ -239,12 +241,26 @@ describe("Ticket2Me seat map import rules", () => {
       feed: parsed.feed,
       showbuyId: "show-1",
       sectionByTicketType: { 101: "sec-a" },
-      classifications: { 1: "direct_buy", 2: "sold_t2m" },
+      classifications: {},
       regularPriceBySection: { "sec-a": 500_000 },
     });
     expect(mapped.ok).toBe(true);
     if (!mapped.ok) return;
-    expect(mapped.seats.find((s) => s.label === "C1")?.status).toBe("direct_buy");
-    expect(mapped.seats.find((s) => s.label === "C2")?.status).toBe("sold_t2m");
+    const c1 = mapped.seats.find((s) => s.label === "C1");
+    expect(c1?.status).toBe("sold_t2m");
+    expect(c1?.t2mStatus).toBe("sold");
+    expect(c1?.conflict).toBeNull();
+    expect(customerOffer(c1!)).toBe("unavailable");
+
+    const stale = mapT2mFeed({
+      feed: parsed.feed,
+      showbuyId: "show-1",
+      sectionByTicketType: { 101: "sec-a" },
+      classifications: { 1: "direct_buy" },
+      regularPriceBySection: { "sec-a": 500_000 },
+    });
+    expect(stale.ok).toBe(false);
+    if (stale.ok) return;
+    expect(stale.reason).toBe("stale_classification");
   });
 });

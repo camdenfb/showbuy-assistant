@@ -94,7 +94,7 @@ function labelForType(
 }
 
 function isClassifiable(t2mStatus: number): boolean {
-  return t2mStatus === -1 || t2mStatus === 2;
+  return t2mStatus === -1;
 }
 
 type MapCell = { seat_no: string; status: number; ticket_id: number };
@@ -132,7 +132,6 @@ function defaultClassFor(
   saved: Record<number, UnavailableClass>,
 ): UnavailableClass {
   if (saved[seat.seatId]) return saved[seat.seatId]!;
-  if (seat.t2mStatus === 2) return "sold_t2m";
   return "house";
 }
 
@@ -386,7 +385,6 @@ export function ImportForm({
     setClasses((prev) => {
       const next = { ...prev };
       for (const seat of selectedClassifiable) {
-        if (seat.t2mStatus === -1 && value === "sold_t2m") continue;
         next[seat.seatId] = value;
       }
       return next;
@@ -439,7 +437,11 @@ export function ImportForm({
           <p className="rounded bg-red-50 px-3 py-2 text-sm text-red-800">
             {state.reason === "confirm replace required"
               ? "This showbuy already has a seat map. Check “Replace the existing seat map” at the bottom, then save again."
-              : state.reason}
+              : state.reason === "section priced by promo"
+                ? "A section you’re removing is still priced by a promo. Keep that section or update the promo first."
+                : state.reason === "section has seats"
+                  ? "Can’t remove a section that still has seats while this showbuy has orders."
+                  : state.reason}
             {state.reviewAgain ? " — review the map again; the feed changed." : ""}
           </p>
         ) : null}
@@ -618,35 +620,25 @@ export function ImportForm({
 
               {selectedClassifiable.length > 0 ? (
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="text-zinc-600">Set all editable in this section:</span>
-                  {(Object.keys(CLASS_COLORS) as UnavailableClass[])
-                    .filter((key) => key !== "sold_t2m")
-                    .map((key) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => setAllClassifiableInSection(key)}
-                        className="rounded border border-zinc-400 px-2 py-1 font-medium text-zinc-900"
-                        style={{ backgroundColor: CLASS_COLORS[key].bg, color: "#18181b" }}
-                      >
-                        {CLASS_COLORS[key].label}
-                      </button>
-                    ))}
-                  <button
-                    type="button"
-                    onClick={() => setAllClassifiableInSection("sold_t2m")}
-                    className="rounded border border-zinc-400 px-2 py-1 font-medium text-zinc-900"
-                    style={{ backgroundColor: CLASS_COLORS.sold_t2m.bg, color: "#18181b" }}
-                  >
-                    Sold (T2M) — sold seats only
-                  </button>
+                  <span className="text-zinc-600">Set all unavailable in this section:</span>
+                  {(Object.keys(CLASS_COLORS) as UnavailableClass[]).map((key) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => setAllClassifiableInSection(key)}
+                      className="rounded border border-zinc-400 px-2 py-1 font-medium text-zinc-900"
+                      style={{ backgroundColor: CLASS_COLORS[key].bg, color: "#18181b" }}
+                    >
+                      {CLASS_COLORS[key].label}
+                    </button>
+                  ))}
                 </div>
               ) : null}
 
               <div className="columns-2 gap-3">
                 {selectedSeats.map((seat) => {
-                  if (seat.t2mStatus === 0) {
-                    const statusStyle = t2mStatusStyle(0);
+                  if (seat.t2mStatus === 0 || seat.t2mStatus === 2) {
+                    const statusStyle = t2mStatusStyle(seat.t2mStatus);
                     return (
                       <div
                         key={seat.seatId}
@@ -675,13 +667,11 @@ export function ImportForm({
                         }
                         className="min-w-0 flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-zinc-900"
                       >
-                        {seat.t2mStatus === 2 ? (
-                          <option value="sold_t2m">Sold (T2M)</option>
-                        ) : null}
                         <option value="house">House</option>
                         <option value="direct_buy">Direct buy</option>
                         <option value="on_hold">Hold</option>
                         <option value="sold_direct">Sold direct</option>
+                        <option value="sold_t2m">Sold (T2M)</option>
                       </select>
                     </label>
                   );

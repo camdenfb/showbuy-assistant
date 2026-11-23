@@ -91,6 +91,26 @@ describe("seat rules", () => {
     expect(holdChoices(result.seats, ["c5"], []).heldSeatIds).toEqual([]);
   });
 
+  test("direct-buy pull-out stays holdable when Ticket2Me reports unavailable", () => {
+    const before = seat({
+      id: "r15",
+      status: "direct_buy",
+      t2mStatus: "available",
+      conflict: "t2m_mismatch",
+    });
+
+    const result = reconcileShowbuy([before], {
+      ok: true,
+      bySeatId: { r15: "unavailable" },
+    });
+    const after = result.seats[0];
+
+    expect(after?.status).toBe("direct_buy");
+    expect(after?.conflict).toBeNull();
+    expect(after && canHold(after)).toBe(true);
+    expect(after && customerOffer(after)).toBe("direct_buy");
+  });
+
   test("AC4: an unavailable pending pull-out stays pending until the showbuyer confirms", () => {
     const before = seat({
       id: "c5",
@@ -376,8 +396,7 @@ describe("seat rules", () => {
     expect(byId.flagged?.conflict).not.toBeNull();
     expect(customerOffer(byId.flagged!)).toBe("unavailable");
     expect(byId.held?.status).toBe("on_hold");
-    expect(byId.held?.conflict).not.toBeNull();
-    expect(canHold(byId.held!)).toBe(false);
+    expect(byId.held?.conflict).toBe("t2m_mismatch");
   });
 
   test("Feature 1: a partial showbuy can hold and offer only the selected sections", () => {

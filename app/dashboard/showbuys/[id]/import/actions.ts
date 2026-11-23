@@ -198,6 +198,12 @@ export async function saveSeatMapImport(
       if (message.includes("confirm replace required")) {
         return { ok: false, reason: "confirm replace required" };
       }
+      if (message.includes("section priced by promo")) {
+        return { ok: false, reason: "section priced by promo" };
+      }
+      if (message.includes("section has seats")) {
+        return { ok: false, reason: "section has seats" };
+      }
       return { ok: false, reason: message };
     }
 

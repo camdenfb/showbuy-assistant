@@ -1,6 +1,5 @@
 import { notFound } from "next/navigation";
 import { createTicket2MeClient } from "@/lib/adapters/ticket2me";
-import { reconcileShowbuyShared } from "@/lib/reconcile/run-showbuy";
 import { createSupabaseServiceClient } from "@/lib/supabase/server";
 import { OrderForm } from "./order-form";
 
@@ -27,15 +26,6 @@ export default async function CustomerOrderPage({ params }: Props) {
     .eq("id", showbuyId)
     .maybeSingle();
   if (!showbuy) notFound();
-
-  // Page loads share an in-flight reconcile; force so interval does not block UX sync.
-  await reconcileShowbuyShared(showbuyId, { force: true });
-
-  const { data: showbuyAfter } = await supabase
-    .from("showbuys")
-    .select("orders_paused")
-    .eq("id", showbuyId)
-    .maybeSingle();
 
   const [{ data: sections }, { data: seats }, { data: payments }] = await Promise.all([
     supabase
@@ -105,7 +95,7 @@ export default async function CustomerOrderPage({ params }: Props) {
         showbuyId={showbuy.id}
         showbuyName={showbuy.name}
         eventUrl={showbuy.event_url}
-        ordersPaused={showbuyAfter?.orders_paused ?? showbuy.orders_paused}
+        ordersPaused={showbuy.orders_paused}
         sections={sectionsWithColor}
         seats={(seats ?? []).map((seat) => ({
           id: seat.id,

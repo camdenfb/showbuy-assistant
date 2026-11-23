@@ -23,7 +23,7 @@ export type T2mFeedRow = {
   seats: T2mSeatCell[];
 };
 
-/** Classification for unavailable (-1) or sold (2) Ticket2Me seats. */
+/** Classification for Ticket2Me unavailable (-1) seats only. Wire 2 is sold there. */
 export type UnavailableClass =
   | "house"
   | "direct_buy"
@@ -32,13 +32,6 @@ export type UnavailableClass =
   | "sold_t2m";
 
 const UNAVAILABLE_CLASSES = new Set<UnavailableClass>([
-  "house",
-  "direct_buy",
-  "on_hold",
-  "sold_direct",
-]);
-
-const SOLD_CLASSES = new Set<UnavailableClass>([
   "house",
   "direct_buy",
   "on_hold",
@@ -142,6 +135,7 @@ export function ticketTypesFromCells(feed: T2mFeedRow[]): number[] {
 }
 
 function t2mStatusFromWire(status: 0 | 2 | -1): T2mStatus {
+  // Ticket2Me: 0 = on sale; 2 = sold there; -1 = unavailable (we classify).
   if (status === 0) return "available";
   if (status === 2) return "sold";
   return "unavailable";
@@ -169,13 +163,8 @@ export function mapT2mFeed(input: {
 
       const classification = input.classifications[cell.seat_id];
       if (classification !== undefined) {
-        if (cell.status === 0) {
-          return { ok: false, reason: "stale_classification" };
-        }
-        if (cell.status === -1 && !UNAVAILABLE_CLASSES.has(classification)) {
-          return { ok: false, reason: "stale_classification" };
-        }
-        if (cell.status === 2 && !SOLD_CLASSES.has(classification)) {
+        // Only unavailable (-1) seats are classified; 0 and 2 come from Ticket2Me.
+        if (cell.status !== -1 || !UNAVAILABLE_CLASSES.has(classification)) {
           return { ok: false, reason: "stale_classification" };
         }
       }
@@ -196,8 +185,6 @@ export function mapT2mFeed(input: {
       let status: SeatStatus = base.status;
       if (cell.status === -1) {
         status = classification ?? "house";
-      } else if (cell.status === 2) {
-        status = classification ?? "sold_t2m";
       }
 
       const price = input.regularPriceBySection[sectionId] ?? 0;

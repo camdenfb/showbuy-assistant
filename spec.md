@@ -133,7 +133,7 @@ type ReceiptUpload = {
 - The showbuyer can create, edit and switch between several showbuys. Every showbuy has its own order page.
 - Setup collects one Ticket2Me event URL, show ID, date and time, backend access, full or partial coverage, sections to be sold if partial, regular price per section, Ticket2Me fee percentage, capital investment, other expenses, claim code template and whether to deduct card rebates from profit (off by default).
 - **Seat map import:** the server pulls the map from Ticket2Me using the show ID, with each seat's grid place, aisle gaps, ID, label, ticket type and status. The showbuyer names the sections, matches ticket types to them, sets prices and reviews the map before saving.
-- At import, seats on sale become available on Ticket2Me and sold seats become sold on Ticket2Me. Ticket2Me doesn't say why a seat is unavailable, so the showbuyer marks each one house, direct buy or sold direct. **[PROPOSED]** Until then it's a house seat and can't be sold.
+- At import, Ticket2Me status `0` is available on Ticket2Me (not sellable in the app). Status `2` is sold on Ticket2Me (not sellable in the app). Status `-1` is unavailable on Ticket2Me; the showbuyer marks each one house, direct buy, hold or sold direct (or sold on Ticket2Me if needed). Until marked, it's a house seat and can't be sold. App status for `-1` seats also changes when orders are held or sold through the app.
 - For a partial showbuy, the whole map is shown for orientation, and only the selected sections can be sold or counted in analytics.
 - Seats, orders, promos and totals never mix between showbuys. A show with several dates or times is several showbuys, and the same seat number in two showbuys is two different seats.
 - Payment details are saved in each showbuy's settings. A showbuy can have several payment accounts, each with platform (GCash, BPI or Maya), account name, account number and QR code.
@@ -151,13 +151,13 @@ type ReceiptUpload = {
 
 ## Feature 3: Reconcile inventory
 
-- A background task reconciles each showbuy that hasn't taken place yet every hour by default, and whenever a customer loads its order page. Page loads that arrive while a check is running share that check.
+- A background task reconciles each showbuy that hasn't taken place yet every hour by default (interval configurable per showbuy). The customer order page does not sync on load.
 - **[PROPOSED]** Reconciliation also runs when a customer submits an order, before the seat is held.
 - A failed, empty or malformed response changes no seats, alerts the showbuyer and pauses new orders for that showbuy only. While paused, customers see that ordering is briefly unavailable, existing orders carry on and other showbuys are unaffected. **[PROPOSED]** Ordering resumes by itself after the next successful check.
 - **House seat:** unavailable on Ticket2Me is expected. Available or sold is a conflict.
 - **Available on Ticket2Me:** if sold there, change to sold on Ticket2Me. If unavailable, flag it for the showbuyer and don't offer it for direct buy.
 - **Pull-out pending:** if sold there, change to sold on Ticket2Me and cancel the request. If unavailable, ask the showbuyer to confirm the pull-out before it becomes direct buy. **[PROPOSED]**
-- **Direct buy, on hold or sold direct:** unavailable is expected. Available or sold is a conflict. A conflicted seat can't be newly held or issued a claim code.
+- **Direct buy, on hold or sold direct:** unavailable on Ticket2Me (`-1`) is expected. Available again (`0`) or sold there (`2`) is a conflict. A conflicted seat can't be newly held or issued a claim code.
 - **Sold on Ticket2Me:** if it becomes available again, change to available on Ticket2Me and tell the showbuyer.
 - An unknown Ticket2Me status is a conflict and is never treated as available.
 

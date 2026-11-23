@@ -159,7 +159,7 @@ Give Cursor one slice at a time. Read the diff, run `npm test` and try it in the
 | 3 | Seat map import | Build the Ticket2Me adapter and import screen from spec.md. Create a small fictional seat plan with the same fields: rows with rowNumber and seats, each with ticket_id, seat_id, seat_no and status (0, 2, -1). An EMPTY seat_no is a gap. | `feat: import seat map` |
 | 4 | Customer order | Build the mobile-first customer page: seat map, two choices, form, price preview, atomic hold, the demo outbox email, and the AI seat assigner from spec.md with its fallback. Test it with fake AI responses, including invalid IDs, a timeout and a note that tries to give instructions. | `feat: add customer ordering` |
 | 5 | Dashboard | Build the login, showbuy switcher, payment settings, order tracker, private receipt upload, manual payment confirmation, manual status update and Process orders button. No AI yet. | `feat: add order dashboard` |
-| 7 | Reconciliation | Build reconciliation as specified, protected by CRON_SECRET, with the demo replay. Schedule it hourly with Supabase Cron and run it on order page load. Never overwrite a hold made during a check. | `feat: reconcile inventory` |
+| 7 | Reconciliation | Build reconciliation as specified, protected by CRON_SECRET, with the demo replay. Schedule it hourly (not on order page load). Never overwrite a hold made during a check. | `feat: reconcile inventory` |
 | 9 | Showbuy setup | Build Feature 1's create, edit and switch screens for showbuys, with every setup field from spec.md, validated on the server. No signup, no delete. | `feat: add showbuy setup` |
 
 ### Optional, if time permits
