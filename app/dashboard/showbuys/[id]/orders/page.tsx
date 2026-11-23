@@ -112,9 +112,10 @@ export default async function OrdersPage({ params }: Props) {
     }
   }
 
+  const nowMs = Date.now();
   const cards: OrderCard[] = [];
   for (const row of orderRows ?? []) {
-    const order = mapDbOrder(row, Date.now());
+    const order = mapDbOrder(row, nowMs);
     const receiptMeta = latestReceiptByOrder.get(row.id);
     let receiptUrl: string | null = null;
     if (receiptMeta) {

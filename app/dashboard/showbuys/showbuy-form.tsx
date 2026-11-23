@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import {
   createShowbuy,
   updateShowbuy,
@@ -73,27 +73,15 @@ export function ShowbuyForm(props: Props) {
     null,
   );
   const locked = props.mode === "edit" ? props.t2mLocked : false;
-  const [mounted, setMounted] = useState(false);
   const [eventUrl, setEventUrl] = useState(props.initial.eventUrl);
   const [showId, setShowId] = useState(props.initial.t2mShowId);
   const [showIdTouched, setShowIdTouched] = useState(props.mode === "edit");
   const [expenses, setExpenses] = useState(props.initial.otherExpenses);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   const prefillHint = useMemo(() => {
     const extracted = extractT2mShowIdFromEventUrl(eventUrl);
     return extracted;
   }, [eventUrl]);
-
-  // Avoid SSR/client attribute mismatches on number + datetime-local inputs.
-  if (!mounted) {
-    return (
-      <div className="mt-6 max-w-lg text-sm text-zinc-600">Loading form…</div>
-    );
-  }
 
   return (
     <form action={formAction} className="mt-6 max-w-lg space-y-3">
